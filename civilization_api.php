@@ -117,6 +117,10 @@ define('CIV_DEATH_RATE', 0.1);                    // 戦死率（10%）
 define('CIV_BASE_HEAL_TIME_SECONDS', 30);         // 基本治療時間（秒/兵士）
 define('CIV_HEAL_COST_COINS_PER_UNIT', 10);       // 治療コスト（コイン/兵士）
 
+// 時代制限定数
+define('CIV_MAX_ERA_DIFFERENCE', 2);              // 攻撃可能な最大時代差（2つまで許容、3つ以上は不可）
+define('CIV_ERA_ADVANCE_RESEARCH_LIMIT', 3);      // 時代進化時に表示する未完了研究の最大数
+
 // 訓練キューシステム定数
 define('CIV_INSTANT_TRAINING_MIN_COST', 2);       // 訓練即完了の最低クリスタルコスト
 define('CIV_INSTANT_HEALING_MIN_COST', 1);        // 治療即完了の最低クリスタルコスト
@@ -1959,6 +1963,29 @@ if ($action === 'advance_era') {
             throw new Exception("研究ポイントが不足しています（必要: {$nextEra['unlock_research_points']}、現在: {$civ['research_points']}）");
         }
         
+        // ③ 全ての研究が完了しているかチェック
+        $stmt = $pdo->prepare("
+            SELECT cr.id, cr.name 
+            FROM civilization_researches cr
+            WHERE cr.era_id = ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM user_civilization_researches ucr 
+                  WHERE ucr.user_id = ? AND ucr.research_id = cr.id AND ucr.is_completed = TRUE
+              )
+        ");
+        $stmt->execute([$civ['current_era_id'], $me['id']]);
+        $incompleteResearches = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        if (!empty($incompleteResearches)) {
+            $incompleteNames = array_slice(array_column($incompleteResearches, 'name'), 0, CIV_ERA_ADVANCE_RESEARCH_LIMIT);
+            $remaining = count($incompleteResearches) - CIV_ERA_ADVANCE_RESEARCH_LIMIT;
+            $message = "現在の時代の研究がまだ完了していません。未完了: " . implode('、', $incompleteNames);
+            if ($remaining > 0) {
+                $message .= " 他{$remaining}件";
+            }
+            throw new Exception($message);
+        }
+        
         // 時代を進化
         $stmt = $pdo->prepare("
             UPDATE user_civilizations 
@@ -2041,6 +2068,23 @@ if ($action === 'attack') {
             throw new Exception('相手の文明が見つかりません');
         }
         
+        // ⑪ 時代差チェック（CIV_MAX_ERA_DIFFERENCE以上離れていると攻め込めない）
+        $stmt = $pdo->prepare("SELECT era_order FROM civilization_eras WHERE id = ?");
+        $stmt->execute([$myCiv['current_era_id']]);
+        $myEraOrder = (int)$stmt->fetchColumn();
+        
+        $stmt = $pdo->prepare("SELECT era_order, name FROM civilization_eras WHERE id = ?");
+        $stmt->execute([$targetCiv['current_era_id']]);
+        $targetEraData = $stmt->fetch(PDO::FETCH_ASSOC);
+        $targetEraOrder = (int)$targetEraData['era_order'];
+        $targetEraName = $targetEraData['name'];
+        
+        $eraDiff = abs($myEraOrder - $targetEraOrder);
+        if ($eraDiff > CIV_MAX_ERA_DIFFERENCE) {
+            $maxDiff = CIV_MAX_ERA_DIFFERENCE + 1;
+            throw new Exception("時代が{$maxDiff}つ以上離れている相手には攻め込めません（相手: {$targetEraName}、時代差: {$eraDiff}）");
+        }
+        
         // 軍事力を計算（建物 + 兵士 + 装備）
         $myPowerData = calculateTotalMilitaryPower($pdo, $me['id']);
         $myPower = $myPowerData['total_power'];
@@ -2086,6 +2130,22 @@ if ($action === 'attack') {
         $lootResources = [];
         
         if ($winnerId === $me['id']) {
+            // ⑬ 保管庫による資源保護を計算
+            $protectedResources = 0;
+            $stmt = $pdo->prepare("
+                SELECT SUM(bt.resource_protection_ratio * ucb.level) as total_protection_ratio, tc.population
+                FROM user_civilization_buildings ucb
+                JOIN civilization_building_types bt ON ucb.building_type_id = bt.id
+                JOIN user_civilizations tc ON ucb.user_id = tc.user_id
+                WHERE ucb.user_id = ? AND ucb.is_constructing = FALSE 
+                  AND bt.resource_protection_ratio IS NOT NULL
+            ");
+            $stmt->execute([$targetUserId]);
+            $protectionData = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($protectionData && $protectionData['total_protection_ratio'] > 0) {
+                $protectedResources = floor($protectionData['population'] * $protectionData['total_protection_ratio']);
+            }
+            
             // 勝利時：相手の資源を略奪
             $stmt = $pdo->prepare("
                 SELECT ucr.resource_type_id, ucr.amount, rt.resource_key
@@ -2096,8 +2156,19 @@ if ($action === 'attack') {
             $stmt->execute([$targetUserId]);
             $targetResources = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
+            // 合計資源量を計算
+            $totalResources = 0;
             foreach ($targetResources as $res) {
-                $loot = floor($res['amount'] * CIV_LOOT_RESOURCE_RATE);
+                $totalResources += $res['amount'];
+            }
+            
+            // 略奪可能な資源量を計算（保護分を引く）
+            $lootableResources = max(0, $totalResources - $protectedResources);
+            $lootRatio = $totalResources > 0 ? ($lootableResources / $totalResources) : 0;
+            
+            foreach ($targetResources as $res) {
+                // 保護率を考慮した略奪量
+                $loot = floor($res['amount'] * CIV_LOOT_RESOURCE_RATE * $lootRatio);
                 if ($loot > 0) {
                     $lootResources[$res['resource_key']] = $loot;
                     
@@ -2210,10 +2281,24 @@ if ($action === 'get_targets') {
         $stmt->execute([$me['id'], $me['id'], $me['id']]);
         $allyIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
         
+        // 自分の時代を取得
         $stmt = $pdo->prepare("
-            SELECT uc.user_id, uc.civilization_name, uc.population, u.handle, u.display_name
+            SELECT e.era_order, e.name as era_name
+            FROM user_civilizations uc
+            JOIN civilization_eras e ON uc.current_era_id = e.id
+            WHERE uc.user_id = ?
+        ");
+        $stmt->execute([$me['id']]);
+        $myEra = $stmt->fetch(PDO::FETCH_ASSOC);
+        $myEraOrder = $myEra ? (int)$myEra['era_order'] : 1;
+        
+        // ⑪ 時代情報を含めてターゲットを取得
+        $stmt = $pdo->prepare("
+            SELECT uc.user_id, uc.civilization_name, uc.population, u.handle, u.display_name,
+                   e.id as era_id, e.era_order, e.name as era_name, e.icon as era_icon
             FROM user_civilizations uc
             JOIN users u ON uc.user_id = u.id
+            JOIN civilization_eras e ON uc.current_era_id = e.id
             WHERE uc.user_id != ?
             ORDER BY uc.population DESC
             LIMIT 20
@@ -2239,6 +2324,11 @@ if ($action === 'get_targets') {
             
             // 同盟相手かどうかをマーク
             $target['is_ally'] = in_array($target['user_id'], $allyIds);
+            
+            // ⑪ 時代差を計算（2つまでは許容、3つ以上離れていると攻め込めない）
+            $eraDiff = abs($myEraOrder - (int)$target['era_order']);
+            $target['era_difference'] = $eraDiff;
+            $target['can_attack'] = $eraDiff <= CIV_MAX_ERA_DIFFERENCE; // CIV_MAX_ERA_DIFFERENCEまでは許容
         }
         unset($target);
         
@@ -2246,7 +2336,9 @@ if ($action === 'get_targets') {
             'ok' => true, 
             'targets' => $targets,
             'my_military_power' => $myPowerData,
-            'my_troop_composition' => $myTroopComposition
+            'my_troop_composition' => $myTroopComposition,
+            'my_era_order' => $myEraOrder,
+            'my_era_name' => $myEra['era_name'] ?? '不明'
         ]);
     } catch (Exception $e) {
         echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
@@ -3391,6 +3483,30 @@ if ($action === 'attack_with_troops') {
         }
         
         // 防御側の損失処理
+        // ⑭ シェルターによる兵士保護を計算
+        $shelterProtection = 0;
+        $stmt = $pdo->prepare("
+            SELECT SUM(bt.troop_protection_ratio * ucb.level) as total_protection_ratio, 
+                   (SELECT SUM(bt2.military_power * ucb2.level) FROM user_civilization_buildings ucb2 
+                    JOIN civilization_building_types bt2 ON ucb2.building_type_id = bt2.id 
+                    WHERE ucb2.user_id = ? AND ucb2.is_constructing = FALSE) as military_power
+            FROM user_civilization_buildings ucb
+            JOIN civilization_building_types bt ON ucb.building_type_id = bt.id
+            WHERE ucb.user_id = ? AND ucb.is_constructing = FALSE 
+              AND bt.troop_protection_ratio IS NOT NULL
+        ");
+        $stmt->execute([$targetUserId, $targetUserId]);
+        $shelterData = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($shelterData && $shelterData['total_protection_ratio'] > 0 && $shelterData['military_power'] > 0) {
+            // 軍事力 × 保護倍率 = 保護される兵士数
+            $shelterProtection = floor($shelterData['military_power'] * $shelterData['total_protection_ratio']);
+        }
+        
+        // 防御側の総兵士数を計算
+        $totalDefenderTroops = array_sum(array_column($defenderUnit['troops'], 'count'));
+        // シェルター保護率を計算（保護される兵士の割合）
+        $shelterProtectionRate = $totalDefenderTroops > 0 ? min(1, $shelterProtection / $totalDefenderTroops) : 0;
+        
         foreach ($defenderUnit['troops'] as $troop) {
             $troopTypeId = $troop['troop_type_id'];
             $count = $troop['count'];
@@ -3402,7 +3518,9 @@ if ($action === 'attack_with_troops') {
                 $totalLossCount = $count;
             } else {
                 // HPの減少率に応じた損失（死亡+負傷）
-                $totalLossCount = (int)floor($count * $defenderHpLossRate);
+                // ⑭ シェルター保護を適用（保護された兵士は損失から除外）
+                $effectiveHpLossRate = $defenderHpLossRate * (1 - $shelterProtectionRate);
+                $totalLossCount = (int)floor($count * $effectiveHpLossRate);
                 $deaths = (int)floor($totalLossCount * CIV_DEATH_RATE / (CIV_DEATH_RATE + CIV_WOUNDED_RATE));
                 $wounded = $totalLossCount - $deaths;
             }
@@ -6264,6 +6382,41 @@ if ($action === 'get_leaderboards') {
                     WHERE total > ?
                 ");
                 $stmt->execute([$myValue]);
+                $myRank = (int)$stmt->fetchColumn();
+                break;
+            
+            case 'era':
+                // ⑫ 時代ランキング
+                $stmt = $pdo->query("
+                    SELECT uc.user_id, uc.civilization_name, e.era_order as value, u.handle, e.name as era_name, e.icon as era_icon
+                    FROM user_civilizations uc
+                    JOIN users u ON uc.user_id = u.id
+                    JOIN civilization_eras e ON uc.current_era_id = e.id
+                    ORDER BY e.era_order DESC, uc.population DESC
+                    LIMIT {$limit}
+                ");
+                $rankings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                // 自分の時代情報を取得
+                $stmt = $pdo->prepare("
+                    SELECT e.era_order, e.name as era_name, e.icon as era_icon
+                    FROM user_civilizations uc
+                    JOIN civilization_eras e ON uc.current_era_id = e.id
+                    WHERE uc.user_id = ?
+                ");
+                $stmt->execute([$me['id']]);
+                $myEraData = $stmt->fetch(PDO::FETCH_ASSOC);
+                $myValue = $myEraData ? (int)$myEraData['era_order'] : 0;
+                
+                // 自分の順位を取得（同じ時代の場合は人口で比較）
+                $stmt = $pdo->prepare("
+                    SELECT COUNT(*) + 1 as rank_position
+                    FROM user_civilizations uc
+                    JOIN civilization_eras e ON uc.current_era_id = e.id
+                    WHERE e.era_order > ? 
+                       OR (e.era_order = ? AND uc.population > (SELECT population FROM user_civilizations WHERE user_id = ?))
+                ");
+                $stmt->execute([$myValue, $myValue, $me['id']]);
                 $myRank = (int)$stmt->fetchColumn();
                 break;
                 
