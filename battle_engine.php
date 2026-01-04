@@ -740,6 +740,10 @@ function calculateDamage($baseAttack, $targetArmor, $attackerEffects = [], $defe
             $armorMultiplier += $effect['effect_value'] / 100;
             $messages[] = "🛡️ 防御陣形！防御力上昇 (+{$effect['effect_value']}%)";
         }
+        if ($effect['skill_key'] === 'defense_up') {
+            $armorMultiplier += $effect['effect_value'] / 100;
+            $messages[] = "🛡️ 防御強化中 (+{$effect['effect_value']}%)";
+        }
         if ($effect['skill_key'] === 'fortify') {
             $armorMultiplier += $effect['effect_value'] / 100;
             $messages[] = "🛡️ 防御陣形 (+{$effect['effect_value']}%防御力)";
@@ -1115,6 +1119,132 @@ function tryActivateSkill($unit, $target, $isAttacker) {
                     $newEffects[] = $effect;
                     $messages[] = "☢️ 核武装解除！核ユニットに{$nuclearDamage}ダメージ！";
                 }
+            }
+            // 防御強化（防御力上昇）
+            else if ($skill['skill_key'] === 'defense_up') {
+                $effect['effect_type'] = 'buff';
+                $newEffects[] = $effect;
+                $messages[] = "🛡️ 防御強化！防御力が{$skill['effect_value']}%上昇！";
+            }
+            // 二回攻撃（1ターンに2回攻撃）
+            else if ($skill['skill_key'] === 'double_attack') {
+                $extraAttacks += 1; // 通常の1回 + 追加1回
+                $messages[] = "⚔️⚔️ 二回攻撃！2回連続攻撃！";
+            }
+            // 再生（毎ターン自身のHPを回復）
+            else if ($skill['skill_key'] === 'regeneration') {
+                $effect['effect_type'] = 'hot'; // heal over time
+                $newEffects[] = $effect;
+                $messages[] = "🩹 再生！毎ターンHPを{$skill['effect_value']}%回復！";
+            }
+            // AI戦術解析（敵の防御力を無視）
+            else if ($skill['skill_key'] === 'ai_tactical_analysis') {
+                $effect['effect_type'] = 'buff';
+                $effect['ignore_defense_percent'] = $skill['effect_value'];
+                $newEffects[] = $effect;
+                $messages[] = "📦 AI戦術解析！敵の防御力を{$skill['effect_value']}%無視！";
+            }
+            // ダークマターフィールド（敵の命中率を低下）
+            else if ($skill['skill_key'] === 'dark_matter_field') {
+                $effect['effect_type'] = 'debuff';
+                $newEffects[] = $effect;
+                $messages[] = "🌑 ダークマター領域！敵の命中率を{$skill['effect_value']}%低下！";
+            }
+            // エネルギーサージ（追加ダメージ）
+            else if ($skill['skill_key'] === 'energy_surge') {
+                $surgeDamage = (int)floor($skill['troop_attack_power'] * ($skill['effect_value'] / 100));
+                $effect['instant_damage'] = $surgeDamage;
+                $effect['effect_type'] = 'instant_damage';
+                $newEffects[] = $effect;
+                $messages[] = "⚡ エネルギーサージ！{$surgeDamage}追加ダメージ！";
+            }
+            // 量子もつれ（受けたダメージを反射）
+            else if ($skill['skill_key'] === 'quantum_entanglement') {
+                $effect['effect_type'] = 'reflect';
+                $effect['reflect_percent'] = $skill['effect_value'];
+                $newEffects[] = $effect;
+                $messages[] = "💠 量子もつれ！ダメージの{$skill['effect_value']}%を反射！";
+            }
+            // ポータルシフト（攻撃を無効化）
+            else if ($skill['skill_key'] === 'portal_shift') {
+                $effect['effect_type'] = 'evasion';
+                $newEffects[] = $effect;
+                $messages[] = "🌀 ポータルシフト！攻撃を別次元に転送！";
+            }
+            // エコリンク（味方全体を徐々に回復）
+            else if ($skill['skill_key'] === 'eco_link') {
+                $effect['effect_type'] = 'hot'; // heal over time
+                $effect['effect_target'] = 'ally';
+                $newEffects[] = $effect;
+                $messages[] = "🌿 エコリンク！味方全体のHPを毎ターン{$skill['effect_value']}%回復！";
+            }
+            // 遺伝子変異（毎ターン攻撃力上昇）
+            else if ($skill['skill_key'] === 'gene_mutation') {
+                $effect['effect_type'] = 'buff';
+                $effect['stacking'] = true; // スタック可能
+                $newEffects[] = $effect;
+                $messages[] = "🧬 遺伝子変異！毎ターン攻撃力が{$skill['effect_value']}%上昇！";
+            }
+            // 軌道砲撃（防御無視の超威力）
+            else if ($skill['skill_key'] === 'orbital_strike') {
+                $strikeDamage = (int)floor($skill['troop_attack_power'] * ($skill['effect_value'] / 100));
+                $effect['instant_damage'] = $strikeDamage;
+                $effect['effect_type'] = 'instant_damage';
+                $effect['ignore_defense'] = true;
+                $newEffects[] = $effect;
+                $messages[] = "💥 軌道砲撃！防御無視で{$strikeDamage}ダメージ！";
+            }
+            // 高速機動（回避率大幅上昇）
+            else if ($skill['skill_key'] === 'high_speed_maneuver') {
+                $effect['effect_type'] = 'evasion';
+                $newEffects[] = $effect;
+                $messages[] = "🎯 高速機動！回避率が{$skill['effect_value']}%上昇！";
+            }
+            // 宇宙共鳴（攻防同時強化）
+            else if ($skill['skill_key'] === 'cosmic_resonance') {
+                $effect['effect_type'] = 'buff';
+                $effect['boost_both'] = true; // 攻撃と防御両方
+                $newEffects[] = $effect;
+                $messages[] = "💎 宇宙共鳴！攻撃力と防御力を{$skill['effect_value']}%上昇！";
+            }
+            // 合成再構築（HP全回復）
+            else if ($skill['skill_key'] === 'synthetic_rebuild') {
+                $rebuildHeal = (int)floor($unit['max_health'] * ($skill['effect_value'] / 100));
+                $effect['instant_heal'] = $rebuildHeal;
+                $effect['effect_type'] = 'heal';
+                $newEffects[] = $effect;
+                $messages[] = "🔬 合成再構築！HP{$rebuildHeal}回復！";
+            }
+            // 次元跳躍（先制攻撃）
+            else if ($skill['skill_key'] === 'dimension_leap') {
+                $effect['effect_type'] = 'buff';
+                $effect['first_strike'] = true;
+                $newEffects[] = $effect;
+                $messages[] = "🌀 次元跳躍！先制攻撃！";
+            }
+            // 銀河の威光（味方全体を強化）
+            else if ($skill['skill_key'] === 'galactic_majesty') {
+                $effect['effect_type'] = 'buff';
+                $effect['effect_target'] = 'ally';
+                $effect['boost_both'] = true;
+                $newEffects[] = $effect;
+                $messages[] = "🌌 銀河の威光！味方全体の攻撃力と防御力を{$skill['effect_value']}%上昇！";
+            }
+            // 変換魔法（敵のバフを奪う）
+            else if ($skill['skill_key'] === 'transmutation_magic') {
+                $effect['effect_type'] = 'special';
+                $effect['steal_buff'] = true;
+                $newEffects[] = $effect;
+                $messages[] = "🧪 変換魔法！敵のバフ効果を奪取！";
+            }
+            // ユニバーサル破壊（全体攻撃）
+            else if ($skill['skill_key'] === 'universal_destruction') {
+                $destructionDamage = (int)floor($skill['troop_attack_power'] * ($skill['effect_value'] / 100));
+                $effect['instant_damage'] = $destructionDamage;
+                $effect['effect_type'] = 'instant_damage';
+                $effect['aoe'] = true; // 全体攻撃
+                $newEffects[] = $effect;
+                $messages[] = "💥 ユニバーサル破壊！敵全体に{$destructionDamage}ダメージ！";
             }
             else {
                 $newEffects[] = $effect;
