@@ -139,14 +139,14 @@ INSERT IGNORE INTO civilization_building_types (building_key, name, icon, descri
 
 -- 宇宙船革命時代の建物
 INSERT IGNORE INTO civilization_building_types (building_key, name, icon, description, category, produces_resource_id, production_rate, max_level, unlock_era_id, base_build_cost_coins, base_build_cost_resources, base_build_time_seconds, population_capacity, military_power) VALUES
-('container_factory', 'コンテナ工場', '🔑', 'コンテナアンロックキーを生産', 'production', NULL, 0, 10, 23, 30000000, '{"iron": 100000, "tech_core': 2000}', 604800, 0, 0),
+('container_factory', 'コンテナ工場', '🔑', 'コンテナアンロックキーを生産', 'production', NULL, 0, 10, 23, 30000000, '{"iron": 100000, "tech_core": 2000}', 604800, 0, 0),
 ('cosmic_museum', '宇宙博物館', '🦴', '宇宙化石を収集展示', 'special', NULL, 0, 10, 23, 35000000, '{"cosmic_shard": 1000, "planet_memory": 500}', 648000, 0, 0),
 ('lightspeed_dock', '光速ドック', '💫', '光速宇宙船の建造施設', 'military', NULL, 0, 5, 23, 50000000, '{"antimatter_particle": 2000, "movement_core": 1000}', 777600, 0, 100000);
 
 -- 銀河時代の建物
 INSERT IGNORE INTO civilization_building_types (building_key, name, icon, description, category, produces_resource_id, production_rate, max_level, unlock_era_id, base_build_cost_coins, base_build_cost_resources, base_build_time_seconds, population_capacity, military_power) VALUES
 ('ai_factory', 'AIクレート工場', '📦', 'AIクレートを生産', 'production', NULL, 0, 10, 24, 40000000, '{"ai_core": 5000, "quantum_module": 1000}', 691200, 0, 0),
-('cosmic_command', '宇宙操作センター', '🎛️', '宇宙操作盤を生産', 'production', NULL, 0, 10, 24, 45000000, '{"cache_cluster": 2000, "cosmic_shard': 2000}', 734400, 0, 0),
+('cosmic_command', '宇宙操作センター', '🎛️', '宇宙操作盤を生産', 'production', NULL, 0, 10, 24, 45000000, '{"cache_cluster": 2000, "cosmic_shard": 2000}', 734400, 0, 0),
 ('galactic_fortress', '銀河要塞', '🌌', '銀河規模の軍事要塞', 'military', NULL, 0, 5, 24, 80000000, '{"iron": 200000, "dark_matter": 10000}', 864000, 0, 200000),
 ('galactic_megacity', '銀河メガシティ', '🌃', '銀河規模の都市', 'housing', NULL, 0, 5, 24, 60000000, '{"iron": 150000, "universe_tech": 2000}', 777600, 500000, 0);
 

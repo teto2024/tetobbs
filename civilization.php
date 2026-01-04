@@ -2329,6 +2329,7 @@ function renderApp() {
                     <div style="color: #c0a080; margin-bottom: 8px; font-size: 14px;">📊 メインランキング</div>
                     <div id="main-ranking-buttons" style="display: flex; flex-wrap: wrap; gap: 8px;">
                         <button class="ranking-btn active" data-ranking="population" style="padding: 8px 12px; background: rgba(255, 215, 0, 0.3); border: 2px solid #ffd700; border-radius: 6px; color: #f5deb3; cursor: pointer; font-size: 12px; transition: all 0.2s;">👥 人口</button>
+                        <button class="ranking-btn" data-ranking="era" style="padding: 8px 12px; background: rgba(0,0,0,0.3); border: 2px solid #666; border-radius: 6px; color: #888; cursor: pointer; font-size: 12px; transition: all 0.2s;">🏛️ 時代</button>
                         <button class="ranking-btn" data-ranking="military_power" style="padding: 8px 12px; background: rgba(0,0,0,0.3); border: 2px solid #666; border-radius: 6px; color: #888; cursor: pointer; font-size: 12px; transition: all 0.2s;">⚔️ 軍事力</button>
                         <button class="ranking-btn" data-ranking="total_soldiers" style="padding: 8px 12px; background: rgba(0,0,0,0.3); border: 2px solid #666; border-radius: 6px; color: #888; cursor: pointer; font-size: 12px; transition: all 0.2s;">🎖️ 総兵士数</button>
                         <button class="ranking-btn" data-ranking="total_buildings" style="padding: 8px 12px; background: rgba(0,0,0,0.3); border: 2px solid #666; border-radius: 6px; color: #888; cursor: pointer; font-size: 12px; transition: all 0.2s;">🏠 総建築物数</button>
@@ -3226,6 +3227,10 @@ async function loadTargets() {
                         <div style="color: #888; font-size: 13px; margin-bottom: 5px;">
                             @${escapeHtml(t.handle)} | 👥 ${t.population}人
                         </div>
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 6px;">
+                            <span style="font-size: 16px;">${t.era_icon || '🏛️'}</span>
+                            <span style="color: #ffd700; font-size: 12px; font-weight: bold;">${escapeHtml(t.era_name || '不明')}</span>
+                        </div>
                         <div style="background: rgba(70, 130, 180, 0.3); padding: 8px; border-radius: 6px; text-align: center; color: #87ceeb;">
                             <span style="font-weight: bold;">🤝 同盟国</span>
                             <span style="color: #888; font-size: 11px; display: block; margin-top: 3px;">攻撃できません</span>
@@ -3284,7 +3289,7 @@ async function loadTargets() {
                 }
                 
                 return `
-                <div class="target-card">
+                <div class="target-card" ${!t.can_attack ? 'style="opacity: 0.6;"' : ''}>
                     <div class="target-header">
                         <span class="target-name">${escapeHtml(t.civilization_name)}</span>
                         <span class="target-power" style="${powerClass}">⚔️ ${targetPower}</span>
@@ -3292,12 +3297,19 @@ async function loadTargets() {
                     <div style="color: #888; font-size: 13px; margin-bottom: 5px;">
                         @${escapeHtml(t.handle)} | 👥 ${t.population}人
                     </div>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 6px;">
+                        <span style="font-size: 16px;">${t.era_icon || '🏛️'}</span>
+                        <span style="color: #ffd700; font-size: 12px; font-weight: bold;">${escapeHtml(t.era_name || '不明')}</span>
+                        ${t.era_difference > 2 ? `<span style="color: #ff6b6b; font-size: 10px; margin-left: auto;">⚠️ 時代差${t.era_difference}</span>` : 
+                          t.era_difference > 0 ? `<span style="color: #888; font-size: 10px; margin-left: auto;">時代差${t.era_difference}</span>` : ''}
+                    </div>
                     ${troopCompText}
                     ${equipBuffText}
                     ${advantageText}
                     <div style="font-size: 12px; margin-bottom: 10px; ${powerClass}">
                         ${powerIndicator}
                     </div>
+                    ${t.can_attack ? `
                     <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                         <button class="attack-btn" data-target-id="${Number(t.user_id) || 0}" data-target-name="${escapeHtml(t.civilization_name)}" data-target-power="${Number(targetPower) || 0}">
                             ⚔️ 攻撃する
@@ -3306,6 +3318,12 @@ async function loadTargets() {
                             🔭 偵察
                         </button>
                     </div>
+                    ` : `
+                    <div style="background: rgba(255, 0, 0, 0.2); padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #ff6b6b;">
+                        <span style="color: #ff6b6b; font-weight: bold;">⚠️ 時代差3以上のため攻撃不可</span>
+                        <div style="color: #888; font-size: 11px; margin-top: 5px;">時代が近い相手を選んでください</div>
+                    </div>
+                    `}
                 </div>
             `}).join('');
             
@@ -5621,6 +5639,17 @@ async function loadLeaderboard(rankingType = null) {
             const rankIcon = entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `#${entry.rank}`;
             const isMeStyle = entry.is_me ? 'background: rgba(255, 215, 0, 0.3); border: 2px solid #ffd700;' : '';
             
+            // ⑫ 時代ランキングの場合は時代名とアイコンを表示
+            let valueDisplay = '';
+            if (currentLeaderboardType === 'era' && entry.era_name) {
+                valueDisplay = `<div style="display: flex; align-items: center; gap: 8px; color: #ffd700; font-size: 16px; font-weight: bold;">
+                    <span style="font-size: 20px;">${entry.era_icon || '🏛️'}</span>
+                    <span>${escapeHtml(entry.era_name)}</span>
+                </div>`;
+            } else {
+                valueDisplay = `<div style="color: #ffd700; font-size: 18px; font-weight: bold;">${Number(entry.value).toLocaleString()}</div>`;
+            }
+            
             html += `
                 <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 15px; margin-bottom: 8px; background: rgba(0,0,0,0.3); border-radius: 8px; ${isMeStyle}">
                     <div style="display: flex; align-items: center; gap: 15px;">
@@ -5631,7 +5660,7 @@ async function loadLeaderboard(rankingType = null) {
                         </div>
                     </div>
                     <div style="text-align: right;">
-                        <div style="color: #ffd700; font-size: 18px; font-weight: bold;">${Number(entry.value).toLocaleString()}</div>
+                        ${valueDisplay}
                     </div>
                 </div>
             `;
