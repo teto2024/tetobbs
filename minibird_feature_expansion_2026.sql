@@ -84,6 +84,37 @@ INSERT IGNORE INTO civilization_building_types (building_key, name, icon, descri
 INSERT IGNORE INTO civilization_building_types (building_key, name, icon, description, category, produces_resource_id, production_rate, max_level, unlock_era_id, base_build_cost_coins, base_build_cost_resources, base_build_time_seconds, population_capacity, military_power, resource_protection_ratio, troop_protection_ratio) VALUES
 ('shelter', 'シェルター', '🛡️', '兵士を攻撃から守る防空施設。軍事力の1/1000の兵士を保護。', 'military', NULL, 0, 10, 6, 20000, '{"iron": 600, "stone": 400, "oil": 100}', 9000, 0, 100, NULL, 0.001);
 
+-- ③ 宇宙時代以前の時代に人口を増やす建物を追加
+-- 原子力時代（era 8）に追加の住居
+INSERT IGNORE INTO civilization_building_types (building_key, name, icon, description, category, produces_resource_id, production_rate, max_level, unlock_era_id, base_build_cost_coins, base_build_cost_resources, base_build_time_seconds, population_capacity, military_power) VALUES
+('atomic_apartment', '原子力集合住宅', '🏢', '原子力発電で快適な大規模集合住宅', 'housing', NULL, 0, 10, 8, 85000, '{"iron": 1200, "stone": 1500, "uranium": 10}', 39600, 250, 0),
+('civil_defense_shelter', '民間防衛シェルター', '🏘️', '核攻撃に備えた地下住居', 'housing', NULL, 0, 10, 8, 70000, '{"stone": 2000, "iron": 800}', 32400, 180, 0);
+
+-- 現代Ⅱ（era 9）に追加の住居
+INSERT IGNORE INTO civilization_building_types (building_key, name, icon, description, category, produces_resource_id, production_rate, max_level, unlock_era_id, base_build_cost_coins, base_build_cost_resources, base_build_time_seconds, population_capacity, military_power) VALUES
+('digital_residence', 'デジタルレジデンス', '🏠', 'インターネット完備の近代住宅', 'housing', NULL, 0, 10, 9, 190000, '{"iron": 2000, "silicon": 300, "glass": 500}', 57600, 450, 0),
+('net_community', 'ネットコミュニティ', '🌐', 'オンライン機能統合の住宅地', 'housing', NULL, 0, 10, 9, 160000, '{"iron": 1500, "silicon": 200, "stone": 1000}', 50400, 350, 0);
+
+-- 現代Ⅲ（era 10）に追加の住居
+INSERT IGNORE INTO civilization_building_types (building_key, name, icon, description, category, produces_resource_id, production_rate, max_level, unlock_era_id, base_build_cost_coins, base_build_cost_resources, base_build_time_seconds, population_capacity, military_power) VALUES
+('smart_apartment', 'スマートアパートメント', '📱', 'IoT完備のスマート住宅', 'housing', NULL, 0, 10, 10, 320000, '{"iron": 2800, "silicon": 800, "rare_earth": 100}', 68400, 650, 0),
+('connected_tower', 'コネクテッドタワー', '🗼', 'SNS統合の超高層住宅', 'housing', NULL, 0, 10, 10, 380000, '{"iron": 3500, "silicon": 1000, "glass": 1200}', 79200, 750, 0);
+
+-- 量子革命時代（era 11）に追加の住居
+INSERT IGNORE INTO civilization_building_types (building_key, name, icon, description, category, produces_resource_id, production_rate, max_level, unlock_era_id, base_build_cost_coins, base_build_cost_resources, base_build_time_seconds, population_capacity, military_power) VALUES
+('quantum_residence', '量子レジデンス', '⚛️', '量子技術で守られた住居', 'housing', NULL, 0, 10, 11, 520000, '{"iron": 4000, "quantum_crystal": 80, "silicon": 1500}', 93600, 900, 0),
+('quantum_habitat', '量子ハビタット', '🔮', '量子空間を利用した大容量住居', 'housing', NULL, 0, 10, 11, 600000, '{"iron": 4500, "quantum_crystal": 120, "rare_earth": 300}', 108000, 1100, 0);
+
+-- 現代Ⅳ（era 12）に追加の住居
+INSERT IGNORE INTO civilization_building_types (building_key, name, icon, description, category, produces_resource_id, production_rate, max_level, unlock_era_id, base_build_cost_coins, base_build_cost_resources, base_build_time_seconds, population_capacity, military_power) VALUES
+('ai_managed_complex', 'AI管理コンプレックス', '🤖', 'AI完全管理の住宅複合施設', 'housing', NULL, 0, 10, 12, 850000, '{"iron": 6000, "ai_core": 80, "silicon": 3000}', 144000, 1600, 0),
+('automated_city_block', '自動化シティブロック', '🏙️', 'ロボットが管理する住宅街', 'housing', NULL, 0, 10, 12, 950000, '{"iron": 7000, "ai_core": 100, "silicon": 4000}', 158400, 1900, 0);
+
+-- 現代Ⅴ（era 13）に追加の住居
+INSERT IGNORE INTO civilization_building_types (building_key, name, icon, description, category, produces_resource_id, production_rate, max_level, unlock_era_id, base_build_cost_coins, base_build_cost_resources, base_build_time_seconds, population_capacity, military_power) VALUES
+('bio_habitat', 'バイオハビタット', '🧬', '遺伝子技術で最適化された住居', 'housing', NULL, 0, 10, 13, 1100000, '{"iron": 5000, "gene_sample": 100, "glass": 3000}', 165600, 2500, 0),
+('genetic_paradise', '遺伝子パラダイス', '🌺', 'バイオ技術による理想の住環境', 'housing', NULL, 0, 10, 13, 1250000, '{"iron": 6500, "gene_sample": 150, "ai_core": 50}', 180000, 2900, 0);
+
 -- 現代Ⅵの建物
 INSERT IGNORE INTO civilization_building_types (building_key, name, icon, description, category, produces_resource_id, production_rate, max_level, unlock_era_id, base_build_cost_coins, base_build_cost_resources, base_build_time_seconds, population_capacity, military_power) VALUES
 ('dark_matter_collector', 'ダークマター収集機', '🌑', 'ダークマターを収集する', 'production', NULL, 0, 10, 15, 3000000, '{"iron": 20000, "quantum_crystal": 500}', 172800, 0, 0),
@@ -157,66 +188,74 @@ INSERT IGNORE INTO civilization_building_types (building_key, name, icon, descri
 
 -- ===============================================
 -- ⑦ 新兵種を追加（各時代3〜4個）
+-- ① 各兵種にスキルを追加（発動率と効果はバランス考慮）
 -- ===============================================
-INSERT IGNORE INTO civilization_troop_types (troop_key, name, icon, description, unlock_era_id, attack_power, defense_power, train_cost_coins, train_cost_resources, train_time_seconds, troop_category) VALUES
+
+-- スキル追加用のカラムを追加（存在しない場合）
+ALTER TABLE civilization_troop_types
+ADD COLUMN IF NOT EXISTS health_points INT UNSIGNED NULL COMMENT '体力値' AFTER defense_power,
+ADD COLUMN IF NOT EXISTS troop_category ENUM('infantry', 'cavalry', 'ranged', 'siege') NULL COMMENT '兵種カテゴリ' AFTER train_time_seconds,
+ADD COLUMN IF NOT EXISTS special_skill_id INT UNSIGNED NULL COMMENT '特殊スキルID' AFTER troop_category;
+
+INSERT IGNORE INTO civilization_troop_types (troop_key, name, icon, description, unlock_era_id, attack_power, defense_power, health_points, train_cost_coins, train_cost_resources, train_time_seconds, troop_category, special_skill_id) VALUES
 -- 現代Ⅵ（時代15）
-('cyber_warrior', 'サイバーウォリアー', '🦾', 'サイバネティクス強化された戦士', 15, 600, 500, 150000, '{"food": 500, "ai_core": 20}', 4500, 'infantry'),
-('dark_matter_tank', 'ダークマタータンク', '🌑', 'ダークマター装甲の戦車', 15, 900, 800, 250000, '{"iron": 2000, "dark_matter": 50}', 7200, 'siege'),
-('energy_drone', 'エネルギードローン', '⚡', 'エネルギー兵器搭載ドローン', 15, 700, 400, 180000, '{"silicon": 1000, "energy_charger": 30}', 5400, 'ranged'),
-('quantum_soldier', '量子兵士', '💠', '量子技術で強化された兵士', 15, 750, 600, 200000, '{"food": 600, "quantum_crystal": 30}', 6000, 'infantry'),
+('cyber_warrior', 'サイバーウォリアー', '🦾', 'サイバネティクス強化された戦士', 15, 600, 500, 1200, 150000, '{"food": 500, "ai_core": 20}', 4500, 'infantry', (SELECT id FROM battle_special_skills WHERE skill_key = 'attack_up' LIMIT 1)),
+('dark_matter_tank', 'ダークマタータンク', '🌑', 'ダークマター装甲の戦車', 15, 900, 800, 1800, 250000, '{"iron": 2000, "dark_matter": 50}', 7200, 'siege', (SELECT id FROM battle_special_skills WHERE skill_key = 'armor_harden' LIMIT 1)),
+('energy_drone', 'エネルギードローン', '⚡', 'エネルギー兵器搭載ドローン', 15, 700, 400, 1000, 180000, '{"silicon": 1000, "energy_charger": 30}', 5400, 'ranged', (SELECT id FROM battle_special_skills WHERE skill_key = 'critical' LIMIT 1)),
+('quantum_soldier', '量子兵士', '💠', '量子技術で強化された兵士', 15, 750, 600, 1300, 200000, '{"food": 600, "quantum_crystal": 30}', 6000, 'infantry', (SELECT id FROM battle_special_skills WHERE skill_key = 'evasion' LIMIT 1)),
 
 -- 地球大革命時代（時代16）
-('eco_guardian', 'エコガーディアン', '🌿', '環境保護型戦闘ユニット', 16, 800, 700, 280000, '{"food": 700, "gene_sample": 50}', 7800, 'infantry'),
-('portal_knight', 'ポータルナイト', '🌀', 'ポータル技術を使う騎士', 16, 950, 650, 350000, '{"iron": 2500, "portal_token": 20}', 9000, 'cavalry'),
-('tech_mech', 'テックメック', '🤖', '高度技術の戦闘メック', 16, 1100, 900, 400000, '{"iron": 3000, "tech_core": 40}', 10800, 'siege'),
-('global_defender', 'グローバルディフェンダー', '🛡️', '地球防衛専門部隊', 16, 700, 1000, 300000, '{"food": 800, "ai_core": 30}', 8400, 'infantry'),
+('eco_guardian', 'エコガーディアン', '🌿', '環境保護型戦闘ユニット', 16, 800, 700, 1400, 280000, '{"food": 700, "gene_sample": 50}', 7800, 'infantry', (SELECT id FROM battle_special_skills WHERE skill_key = 'heal' LIMIT 1)),
+('portal_knight', 'ポータルナイト', '🌀', 'ポータル技術を使う騎士', 16, 950, 650, 1350, 350000, '{"iron": 2500, "portal_token": 20}', 9000, 'cavalry', (SELECT id FROM battle_special_skills WHERE skill_key = 'acceleration' LIMIT 1)),
+('tech_mech', 'テックメック', '🤖', '高度技術の戦闘メック', 16, 1100, 900, 2000, 400000, '{"iron": 3000, "tech_core": 40}', 10800, 'siege', (SELECT id FROM battle_special_skills WHERE skill_key = 'double_attack' LIMIT 1)),
+('global_defender', 'グローバルディフェンダー', '🛡️', '地球防衛専門部隊', 16, 700, 1000, 1600, 300000, '{"food": 800, "ai_core": 30}', 8400, 'infantry', (SELECT id FROM battle_special_skills WHERE skill_key = 'defense_formation' LIMIT 1)),
 
 -- 近未来時代（時代17）
-('antimatter_soldier', '反物質兵', '⚛️', '反物質エネルギーを使う兵士', 17, 1200, 800, 500000, '{"food": 1000, "antimatter_particle": 30}', 12000, 'infantry'),
-('synthetic_warrior', '合成戦士', '🔬', '合成素粒子で強化された戦士', 17, 1000, 1100, 450000, '{"food": 900, "synthetic_particle": 40}', 10800, 'infantry'),
-('space_marine_elite', 'エリートスペースマリーン', '🚀', '宇宙戦闘のエリート', 17, 1300, 1000, 550000, '{"food": 1200, "dark_matter": 100}', 13200, 'infantry'),
-('mega_mech', 'メガメック', '⚙️', '巨大戦闘メック', 17, 1500, 1200, 650000, '{"iron": 5000, "ai_core": 100}', 15000, 'siege'),
+('antimatter_soldier', '反物質兵', '⚛️', '反物質エネルギーを使う兵士', 17, 1200, 800, 1600, 500000, '{"food": 1000, "antimatter_particle": 30}', 12000, 'infantry', (SELECT id FROM battle_special_skills WHERE skill_key = 'bloodlust' LIMIT 1)),
+('synthetic_warrior', '合成戦士', '🔬', '合成素粒子で強化された戦士', 17, 1000, 1100, 1800, 450000, '{"food": 900, "synthetic_particle": 40}', 10800, 'infantry', (SELECT id FROM battle_special_skills WHERE skill_key = 'counter' LIMIT 1)),
+('space_marine_elite', 'エリートスペースマリーン', '🚀', '宇宙戦闘のエリート', 17, 1300, 1000, 1700, 550000, '{"food": 1200, "dark_matter": 100}', 13200, 'infantry', (SELECT id FROM battle_special_skills WHERE skill_key = 'inspire' LIMIT 1)),
+('mega_mech', 'メガメック', '⚙️', '巨大戦闘メック', 17, 1500, 1200, 2200, 650000, '{"iron": 5000, "ai_core": 100}', 15000, 'siege', (SELECT id FROM battle_special_skills WHERE skill_key = 'armor_crush' LIMIT 1)),
 
 -- 近未来時代Ⅱ（時代18）
-('generation_trooper', 'ジェネレーション兵', '📊', '生成技術で強化された兵士', 18, 1400, 1100, 700000, '{"food": 1500, "generation_unit": 50}', 16200, 'infantry'),
-('gene_warrior', '遺伝子戦士', '🧬', '遺伝子改造された超人兵士', 18, 1600, 1000, 800000, '{"food": 1800, "generation_gene": 60}', 18000, 'infantry'),
-('colony_guard', 'コロニーガード', '🏠', 'コロニー防衛専門部隊', 18, 1200, 1500, 750000, '{"food": 1600, "iron": 4000}', 17100, 'infantry'),
-('orbital_bomber', '軌道爆撃機', '💥', '軌道からの爆撃', 18, 2000, 600, 900000, '{"iron": 6000, "antimatter_particle": 80}', 21600, 'ranged'),
+('generation_trooper', 'ジェネレーション兵', '📊', '生成技術で強化された兵士', 18, 1400, 1100, 1900, 700000, '{"food": 1500, "generation_unit": 50}', 16200, 'infantry', (SELECT id FROM battle_special_skills WHERE skill_key = 'attack_up' LIMIT 1)),
+('gene_warrior', '遺伝子戦士', '🧬', '遺伝子改造された超人兵士', 18, 1600, 1000, 2000, 800000, '{"food": 1800, "generation_gene": 60}', 18000, 'infantry', (SELECT id FROM battle_special_skills WHERE skill_key = 'regeneration' LIMIT 1)),
+('colony_guard', 'コロニーガード', '🏠', 'コロニー防衛専門部隊', 18, 1200, 1500, 2100, 750000, '{"food": 1600, "iron": 4000}', 17100, 'infantry', (SELECT id FROM battle_special_skills WHERE skill_key = 'defense_up' LIMIT 1)),
+('orbital_bomber', '軌道爆撃機', '💥', '軌道からの爆撃', 18, 2000, 600, 1400, 900000, '{"iron": 6000, "antimatter_particle": 80}', 21600, 'ranged', (SELECT id FROM battle_special_skills WHERE skill_key = 'precision_shot' LIMIT 1)),
 
 -- 近未来時代Ⅲ（時代19）
-('movement_assassin', 'ムーブメントアサシン', '🎯', '高速移動暗殺者', 19, 1800, 900, 950000, '{"food": 2000, "movement_core": 40}', 21600, 'cavalry'),
-('quantum_tank', '量子タンク', '💠', '量子シールド搭載戦車', 19, 2200, 1800, 1200000, '{"iron": 8000, "generation_quantum": 100}', 27000, 'siege'),
-('star_trooper', 'スタートルーパー', '⭐', '恒星間戦闘部隊', 19, 2000, 1400, 1100000, '{"food": 2500, "dark_matter": 200}', 25200, 'infantry'),
+('movement_assassin', 'ムーブメントアサシン', '🎯', '高速移動暗殺者', 19, 1800, 900, 1600, 950000, '{"food": 2000, "movement_core": 40}', 21600, 'cavalry', (SELECT id FROM battle_special_skills WHERE skill_key = 'critical' LIMIT 1)),
+('quantum_tank', '量子タンク', '💠', '量子シールド搭載戦車', 19, 2200, 1800, 2500, 1200000, '{"iron": 8000, "generation_quantum": 100}', 27000, 'siege', (SELECT id FROM battle_special_skills WHERE skill_key = 'armor_harden' LIMIT 1)),
+('star_trooper', 'スタートルーパー', '⭐', '恒星間戦闘部隊', 19, 2000, 1400, 2200, 1100000, '{"food": 2500, "dark_matter": 200}', 25200, 'infantry', (SELECT id FROM battle_special_skills WHERE skill_key = 'evasion' LIMIT 1)),
 
 -- 惑星革命時代（時代20）
-('universe_soldier', 'ユニバースソルジャー', '🌟', '宇宙規模の戦闘兵', 20, 2500, 1800, 1500000, '{"food": 3000, "universe_tech": 80}', 32400, 'infantry'),
-('planet_crusher', 'プラネットクラッシャー', '🪐', '惑星規模の破壊兵器', 20, 3500, 1500, 2000000, '{"iron": 15000, "scrap_charge": 200}', 43200, 'siege'),
-('un_peacekeeper', '国連平和維持軍', '🕊️', '国連直属の精鋭部隊', 20, 2200, 2200, 1800000, '{"food": 3500, "knowledge": 1000}', 36000, 'infantry'),
+('universe_soldier', 'ユニバースソルジャー', '🌟', '宇宙規模の戦闘兵', 20, 2500, 1800, 2600, 1500000, '{"food": 3000, "universe_tech": 80}', 32400, 'infantry', (SELECT id FROM battle_special_skills WHERE skill_key = 'bloodlust' LIMIT 1)),
+('planet_crusher', 'プラネットクラッシャー', '🪐', '惑星規模の破壊兵器', 20, 3500, 1500, 2800, 2000000, '{"iron": 15000, "scrap_charge": 200}', 43200, 'siege', (SELECT id FROM battle_special_skills WHERE skill_key = 'disarm' LIMIT 1)),
+('un_peacekeeper', '国連平和維持軍', '🕊️', '国連直属の精鋭部隊', 20, 2200, 2200, 2700, 1800000, '{"food": 3500, "knowledge": 1000}', 36000, 'infantry', (SELECT id FROM battle_special_skills WHERE skill_key = 'inspire' LIMIT 1)),
 
 -- 近未来時代Ⅳ（時代21）
-('cache_hacker', 'キャッシュハッカー', '💽', 'サイバー戦のスペシャリスト', 21, 2000, 1500, 1600000, '{"food": 3000, "cache_cluster": 100}', 32400, 'ranged'),
-('cosmic_knight', 'コズミックナイト', '💎', '宇宙シャード装甲の騎士', 21, 3000, 2500, 2200000, '{"iron": 12000, "cosmic_shard": 150}', 46800, 'cavalry'),
-('energy_titan', 'エネルギータイタン', '⚡', 'エネルギー兵器の巨人', 21, 4000, 2000, 2800000, '{"iron": 18000, "energy_charger": 300}', 54000, 'siege'),
+('cache_hacker', 'キャッシュハッカー', '💽', 'サイバー戦のスペシャリスト', 21, 2000, 1500, 2300, 1600000, '{"food": 3000, "cache_cluster": 100}', 32400, 'ranged', (SELECT id FROM battle_special_skills WHERE skill_key = 'vulnerable' LIMIT 1)),
+('cosmic_knight', 'コズミックナイト', '💎', '宇宙シャード装甲の騎士', 21, 3000, 2500, 3000, 2200000, '{"iron": 12000, "cosmic_shard": 150}', 46800, 'cavalry', (SELECT id FROM battle_special_skills WHERE skill_key = 'counter' LIMIT 1)),
+('energy_titan', 'エネルギータイタン', '⚡', 'エネルギー兵器の巨人', 21, 4000, 2000, 3200, 2800000, '{"iron": 18000, "energy_charger": 300}', 54000, 'siege', (SELECT id FROM battle_special_skills WHERE skill_key = 'double_attack' LIMIT 1)),
 
 -- 近未来時代Ⅴ（時代22）
-('quantum_commander', '量子コマンダー', '🔷', '量子技術の指揮官', 22, 3500, 2500, 2500000, '{"food": 4000, "quantum_module": 120}', 50400, 'infantry'),
-('planet_guardian', '惑星ガーディアン', '🗄️', '惑星防衛の守護者', 22, 3000, 3500, 2800000, '{"food": 4500, "planet_memory": 150}', 54000, 'infantry'),
-('transmutation_mage', '変換術士', '🧪', '物質変換能力者', 22, 4500, 2000, 3200000, '{"food": 5000, "quantum_module": 200}', 61200, 'ranged'),
+('quantum_commander', '量子コマンダー', '🔷', '量子技術の指揮官', 22, 3500, 2500, 3100, 2500000, '{"food": 4000, "quantum_module": 120}', 50400, 'infantry', (SELECT id FROM battle_special_skills WHERE skill_key = 'inspire' LIMIT 1)),
+('planet_guardian', '惑星ガーディアン', '🗄️', '惑星防衛の守護者', 22, 3000, 3500, 3500, 2800000, '{"food": 4500, "planet_memory": 150}', 54000, 'infantry', (SELECT id FROM battle_special_skills WHERE skill_key = 'defense_formation' LIMIT 1)),
+('transmutation_mage', '変換術士', '🧪', '物質変換能力者', 22, 4500, 2000, 2800, 3200000, '{"food": 5000, "quantum_module": 200}', 61200, 'ranged', (SELECT id FROM battle_special_skills WHERE skill_key = 'weaken' LIMIT 1)),
 
 -- 宇宙船革命時代（時代23）
-('container_soldier', 'コンテナソルジャー', '🔑', '特殊装備の兵士', 23, 4000, 3000, 3500000, '{"food": 5500, "container_unlock_key": 50}', 64800, 'infantry'),
-('cosmic_archaeologist', 'コズミック考古学者', '🦴', '宇宙化石の力を使う', 23, 3800, 2800, 3200000, '{"food": 5000, "cosmic_fossil": 80}', 61200, 'ranged'),
-('lightspeed_fighter', '光速戦闘機', '💫', '光速に近い戦闘機', 23, 5500, 2500, 4500000, '{"iron": 25000, "antimatter_particle": 500}', 79200, 'ranged'),
+('container_soldier', 'コンテナソルジャー', '🔑', '特殊装備の兵士', 23, 4000, 3000, 3400, 3500000, '{"food": 5500, "container_unlock_key": 50}', 64800, 'infantry', (SELECT id FROM battle_special_skills WHERE skill_key = 'attack_up' LIMIT 1)),
+('cosmic_archaeologist', 'コズミック考古学者', '🦴', '宇宙化石の力を使う', 23, 3800, 2800, 3200, 3200000, '{"food": 5000, "cosmic_fossil": 80}', 61200, 'ranged', (SELECT id FROM battle_special_skills WHERE skill_key = 'critical' LIMIT 1)),
+('lightspeed_fighter', '光速戦闘機', '💫', '光速に近い戦闘機', 23, 5500, 2500, 3600, 4500000, '{"iron": 25000, "antimatter_particle": 500}', 79200, 'ranged', (SELECT id FROM battle_special_skills WHERE skill_key = 'acceleration' LIMIT 1)),
 
 -- 銀河時代（時代24）
-('ai_legion', 'AIレギオン', '📦', 'AI制御の軍団', 24, 5000, 4000, 5000000, '{"ai_crate": 100, "iron": 20000}', 86400, 'infantry'),
-('cosmic_operator', '宇宙オペレーター', '🎛️', '宇宙操作盤を使う技術兵', 24, 4500, 3500, 4500000, '{"food": 6000, "cosmic_console": 80}', 79200, 'ranged'),
-('galactic_titan', '銀河タイタン', '🌌', '銀河規模の巨大兵器', 24, 8000, 5000, 8000000, '{"iron": 40000, "dark_matter": 1000}', 129600, 'siege'),
+('ai_legion', 'AIレギオン', '📦', 'AI制御の軍団', 24, 5000, 4000, 4000, 5000000, '{"ai_crate": 100, "iron": 20000}', 86400, 'infantry', (SELECT id FROM battle_special_skills WHERE skill_key = 'double_attack' LIMIT 1)),
+('cosmic_operator', '宇宙オペレーター', '🎛️', '宇宙操作盤を使う技術兵', 24, 4500, 3500, 3800, 4500000, '{"food": 6000, "cosmic_console": 80}', 79200, 'ranged', (SELECT id FROM battle_special_skills WHERE skill_key = 'fear' LIMIT 1)),
+('galactic_titan', '銀河タイタン', '🌌', '銀河規模の巨大兵器', 24, 8000, 5000, 5000, 8000000, '{"iron": 40000, "dark_matter": 1000}', 129600, 'siege', (SELECT id FROM battle_special_skills WHERE skill_key = 'armor_crush' LIMIT 1)),
 
 -- 銀河時代Ⅱ（時代25）
-('federation_elite', '連邦エリート', '✨', '銀河連邦の精鋭', 25, 7000, 6000, 7000000, '{"food": 8000, "universe_tech": 300}', 108000, 'infantry'),
-('harmony_guardian', 'ハーモニーガーディアン', '🕊️', '宇宙調和の守護者', 25, 6000, 8000, 8000000, '{"food": 10000, "ai_crate": 200}', 122400, 'infantry'),
-('universal_destroyer', 'ユニバーサルデストロイヤー', '💥', '究極の破壊兵器', 25, 12000, 6000, 15000000, '{"iron": 80000, "cosmic_console": 500}', 172800, 'siege');
+('federation_elite', '連邦エリート', '✨', '銀河連邦の精鋭', 25, 7000, 6000, 5500, 7000000, '{"food": 8000, "universe_tech": 300}', 108000, 'infantry', (SELECT id FROM battle_special_skills WHERE skill_key = 'regeneration' LIMIT 1)),
+('harmony_guardian', 'ハーモニーガーディアン', '🕊️', '宇宙調和の守護者', 25, 6000, 8000, 6000, 8000000, '{"food": 10000, "ai_crate": 200}', 122400, 'infantry', (SELECT id FROM battle_special_skills WHERE skill_key = 'defense_up' LIMIT 1)),
+('universal_destroyer', 'ユニバーサルデストロイヤー', '💥', '究極の破壊兵器', 25, 12000, 6000, 5000, 15000000, '{"iron": 80000, "cosmic_console": 500}', 172800, 'siege', (SELECT id FROM battle_special_skills WHERE skill_key = 'disarm' LIMIT 1));
 
 -- ===============================================
 -- ⑧ 新研究を追加（各時代5〜10個）

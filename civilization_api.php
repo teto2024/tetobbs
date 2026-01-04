@@ -491,7 +491,27 @@ $RESOURCE_KEY_TO_NAME = [
     'ai_core' => 'AIコア',
     'gene_sample' => '遺伝子サンプル',
     'dark_matter' => 'ダークマター',
-    'antimatter' => '反物質'
+    'antimatter' => '反物質',
+    // ② 追加の新資源マッピング（現代Ⅵ以降）
+    'energy_charger' => 'エネルギーチャージャー',
+    'tech_core' => 'テックコア',
+    'portal_token' => 'ポータルトークン',
+    'antimatter_particle' => '反物質粒子',
+    'synthetic_particle' => '合成素粒子',
+    'generation_unit' => '生成単位',
+    'generation_gene' => '生成遺伝子',
+    'movement_core' => 'ムーブメントコア',
+    'generation_quantum' => '生成量子',
+    'universe_tech' => 'ユニバーステック',
+    'scrap_charge' => 'スクラップチャージ',
+    'cache_cluster' => 'キャッシュクラスタ',
+    'cosmic_shard' => '宇宙シャード',
+    'quantum_module' => '量子モジュール',
+    'planet_memory' => '惑星メモリ',
+    'container_unlock_key' => 'コンテナアンロックキー',
+    'cosmic_fossil' => '宇宙化石',
+    'ai_crate' => 'AIクレート',
+    'cosmic_console' => '宇宙操作盤'
 ];
 
 /**
