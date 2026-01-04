@@ -870,6 +870,11 @@ function tryActivateSkill($unit, $target, $isAttacker) {
             // ① 既にアクティブな継続バフ/デバフと同じスキルはカウント対象外
             $isAlreadyActive = isset($activeEffectKeys[$skill['skill_key']]);
             
+            // 継続スキル（duration_turns >= SYNERGY_SKILL_DURATION_THRESHOLD）が既にアクティブな場合はスキップ
+            if ($isAlreadyActive && (int)$skill['duration_turns'] >= SYNERGY_SKILL_DURATION_THRESHOLD) {
+                continue; // 重複発動を防ぐため、既にアクティブな継続スキルは追加しない
+            }
+            
             $effect = [
                 'skill_key' => $skill['skill_key'],
                 'skill_name' => $skill['skill_name'],
@@ -1256,10 +1261,23 @@ function activateSynergySkills($unit, $target) {
     $messages = [];
     $newEffects = [];
     
+    // 現在アクティブなスキルキーを取得（重複発動防止用）
+    $activeEffectKeys = [];
+    foreach ($unit['active_effects'] as $effect) {
+        if (isset($effect['skill_key'])) {
+            $activeEffectKeys[$effect['skill_key']] = true;
+        }
+    }
+    
     // duration_turns が SYNERGY_SKILL_DURATION_THRESHOLD 以上のスキルをシナジースキルとして判定
     foreach ($unit['skills'] as $skill) {
         // ヒーロースキルは除外
         if (!empty($skill['is_hero_skill'])) {
+            continue;
+        }
+        
+        // 既にアクティブなシナジースキルはスキップ（重複発動防止）
+        if (isset($activeEffectKeys[$skill['skill_key']])) {
             continue;
         }
         
