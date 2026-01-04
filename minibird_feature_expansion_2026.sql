@@ -350,6 +350,63 @@ INSERT IGNORE INTO civilization_quests (quest_key, quest_category, era_id, title
 ('galactic2_ultimate_victory', 'conquest', 25, '宇宙の覇者', '銀河を支配しましょう', '👑', 'conquest', NULL, 10, 50000000, 50000, 5000, NULL, FALSE, NULL, 100);
 
 -- ===============================================
+-- ⑨ 前提条件を追加（建物）
+-- ===============================================
+
+-- 現代Ⅵの建物：軍事基地または空軍基地が前提
+UPDATE civilization_building_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'military_base' LIMIT 1) WHERE building_key = 'dark_matter_collector';
+UPDATE civilization_building_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'military_base' LIMIT 1) WHERE building_key = 'energy_hub';
+UPDATE civilization_building_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'apartment' LIMIT 1) WHERE building_key = 'mega_tower';
+
+-- 地球大革命時代の建物
+UPDATE civilization_building_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'dark_matter_collector' LIMIT 1) WHERE building_key = 'tech_core_factory';
+UPDATE civilization_building_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'tech_core_factory' LIMIT 1) WHERE building_key = 'portal_gate';
+UPDATE civilization_building_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'mega_tower' LIMIT 1) WHERE building_key = 'eco_dome';
+UPDATE civilization_building_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'air_base' LIMIT 1) WHERE building_key = 'global_defense_center';
+
+-- 近未来時代の建物
+UPDATE civilization_building_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'portal_gate' LIMIT 1) WHERE building_key = 'antimatter_generator';
+UPDATE civilization_building_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'university' LIMIT 1) WHERE building_key = 'synthetic_lab';
+UPDATE civilization_building_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'eco_dome' LIMIT 1) WHERE building_key = 'space_habitat';
+UPDATE civilization_building_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'global_defense_center' LIMIT 1) WHERE building_key = 'mech_factory';
+
+-- 惑星革命時代の建物
+UPDATE civilization_building_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'castle' LIMIT 1) WHERE building_key = 'un_facility';
+
+-- ===============================================
+-- ⑨ 前提条件を追加（兵種）
+-- ===============================================
+
+-- 現代Ⅵの兵種：軍事基地が前提
+UPDATE civilization_troop_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'military_base' LIMIT 1) WHERE troop_key = 'cyber_warrior';
+UPDATE civilization_troop_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'military_base' LIMIT 1) WHERE troop_key = 'dark_matter_tank';
+UPDATE civilization_troop_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'air_base' LIMIT 1) WHERE troop_key = 'energy_drone';
+UPDATE civilization_troop_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'military_base' LIMIT 1) WHERE troop_key = 'quantum_soldier';
+
+-- 地球大革命時代の兵種
+UPDATE civilization_troop_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'global_defense_center' LIMIT 1) WHERE troop_key = 'eco_guardian';
+UPDATE civilization_troop_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'portal_gate' LIMIT 1) WHERE troop_key = 'portal_knight';
+UPDATE civilization_troop_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'mech_factory' LIMIT 1) WHERE troop_key = 'tech_mech';
+UPDATE civilization_troop_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'global_defense_center' LIMIT 1) WHERE troop_key = 'global_defender';
+
+-- 近未来時代の兵種
+UPDATE civilization_troop_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'antimatter_generator' LIMIT 1) WHERE troop_key = 'antimatter_soldier';
+UPDATE civilization_troop_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'synthetic_lab' LIMIT 1) WHERE troop_key = 'synthetic_warrior';
+UPDATE civilization_troop_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'space_habitat' LIMIT 1) WHERE troop_key = 'space_marine_elite';
+UPDATE civilization_troop_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'mech_factory' LIMIT 1) WHERE troop_key = 'mega_mech';
+
+-- 惑星革命時代の兵種
+UPDATE civilization_troop_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'un_facility' LIMIT 1) WHERE troop_key = 'un_peacekeeper';
+
+-- 銀河時代の兵種
+UPDATE civilization_troop_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'galactic_fortress' LIMIT 1) WHERE troop_key = 'galactic_titan';
+
+-- 銀河時代Ⅱの兵種
+UPDATE civilization_troop_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'galactic_federation_hq' LIMIT 1) WHERE troop_key = 'federation_elite';
+UPDATE civilization_troop_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'galactic_federation_hq' LIMIT 1) WHERE troop_key = 'harmony_guardian';
+UPDATE civilization_troop_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'galactic_fortress' LIMIT 1) WHERE troop_key = 'universal_destroyer';
+
+-- ===============================================
 -- 完了メッセージ
 -- ===============================================
 SELECT 'MiniBird feature expansion 2026 schema applied successfully' AS status;

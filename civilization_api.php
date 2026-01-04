@@ -2125,6 +2125,22 @@ if ($action === 'attack') {
         $lootResources = [];
         
         if ($winnerId === $me['id']) {
+            // ⑬ 保管庫による資源保護を計算
+            $protectedResources = 0;
+            $stmt = $pdo->prepare("
+                SELECT SUM(bt.resource_protection_ratio * ucb.level) as total_protection_ratio, tc.population
+                FROM user_civilization_buildings ucb
+                JOIN civilization_building_types bt ON ucb.building_type_id = bt.id
+                JOIN user_civilizations tc ON ucb.user_id = tc.user_id
+                WHERE ucb.user_id = ? AND ucb.is_constructing = FALSE 
+                  AND bt.resource_protection_ratio IS NOT NULL
+            ");
+            $stmt->execute([$targetUserId]);
+            $protectionData = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($protectionData && $protectionData['total_protection_ratio'] > 0) {
+                $protectedResources = floor($protectionData['population'] * $protectionData['total_protection_ratio']);
+            }
+            
             // 勝利時：相手の資源を略奪
             $stmt = $pdo->prepare("
                 SELECT ucr.resource_type_id, ucr.amount, rt.resource_key
@@ -2135,8 +2151,19 @@ if ($action === 'attack') {
             $stmt->execute([$targetUserId]);
             $targetResources = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
+            // 合計資源量を計算
+            $totalResources = 0;
             foreach ($targetResources as $res) {
-                $loot = floor($res['amount'] * CIV_LOOT_RESOURCE_RATE);
+                $totalResources += $res['amount'];
+            }
+            
+            // 略奪可能な資源量を計算（保護分を引く）
+            $lootableResources = max(0, $totalResources - $protectedResources);
+            $lootRatio = $totalResources > 0 ? ($lootableResources / $totalResources) : 0;
+            
+            foreach ($targetResources as $res) {
+                // 保護率を考慮した略奪量
+                $loot = floor($res['amount'] * CIV_LOOT_RESOURCE_RATE * $lootRatio);
                 if ($loot > 0) {
                     $lootResources[$res['resource_key']] = $loot;
                     
@@ -3451,6 +3478,30 @@ if ($action === 'attack_with_troops') {
         }
         
         // 防御側の損失処理
+        // ⑭ シェルターによる兵士保護を計算
+        $shelterProtection = 0;
+        $stmt = $pdo->prepare("
+            SELECT SUM(bt.troop_protection_ratio * ucb.level) as total_protection_ratio, 
+                   (SELECT SUM(bt2.military_power * ucb2.level) FROM user_civilization_buildings ucb2 
+                    JOIN civilization_building_types bt2 ON ucb2.building_type_id = bt2.id 
+                    WHERE ucb2.user_id = ? AND ucb2.is_constructing = FALSE) as military_power
+            FROM user_civilization_buildings ucb
+            JOIN civilization_building_types bt ON ucb.building_type_id = bt.id
+            WHERE ucb.user_id = ? AND ucb.is_constructing = FALSE 
+              AND bt.troop_protection_ratio IS NOT NULL
+        ");
+        $stmt->execute([$targetUserId, $targetUserId]);
+        $shelterData = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($shelterData && $shelterData['total_protection_ratio'] > 0 && $shelterData['military_power'] > 0) {
+            // 軍事力 × 保護倍率 = 保護される兵士数
+            $shelterProtection = floor($shelterData['military_power'] * $shelterData['total_protection_ratio']);
+        }
+        
+        // 防御側の総兵士数を計算
+        $totalDefenderTroops = array_sum(array_column($defenderUnit['troops'], 'count'));
+        // シェルター保護率を計算（保護される兵士の割合）
+        $shelterProtectionRate = $totalDefenderTroops > 0 ? min(1, $shelterProtection / $totalDefenderTroops) : 0;
+        
         foreach ($defenderUnit['troops'] as $troop) {
             $troopTypeId = $troop['troop_type_id'];
             $count = $troop['count'];
@@ -3462,7 +3513,9 @@ if ($action === 'attack_with_troops') {
                 $totalLossCount = $count;
             } else {
                 // HPの減少率に応じた損失（死亡+負傷）
-                $totalLossCount = (int)floor($count * $defenderHpLossRate);
+                // ⑭ シェルター保護を適用（保護された兵士は損失から除外）
+                $effectiveHpLossRate = $defenderHpLossRate * (1 - $shelterProtectionRate);
+                $totalLossCount = (int)floor($count * $effectiveHpLossRate);
                 $deaths = (int)floor($totalLossCount * CIV_DEATH_RATE / (CIV_DEATH_RATE + CIV_WOUNDED_RATE));
                 $wounded = $totalLossCount - $deaths;
             }
