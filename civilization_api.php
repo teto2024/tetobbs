@@ -6493,7 +6493,7 @@ if ($action === 'get_leaderboards') {
         $formattedRankings = [];
         $rank = 1;
         foreach ($rankings as $row) {
-            $formattedRankings[] = [
+            $entry = [
                 'rank' => $rank,
                 'user_id' => (int)$row['user_id'],
                 'civilization_name' => $row['civilization_name'],
@@ -6501,6 +6501,12 @@ if ($action === 'get_leaderboards') {
                 'value' => is_numeric($row['value']) ? (strpos($row['value'], '.') !== false ? round((float)$row['value'], 0) : (int)$row['value']) : 0,
                 'is_me' => (int)$row['user_id'] === $me['id']
             ];
+            // 時代ランキングの場合は時代情報を追加
+            if ($rankingType === 'era' && isset($row['era_name'])) {
+                $entry['era_name'] = $row['era_name'];
+                $entry['era_icon'] = $row['era_icon'] ?? '🏛️';
+            }
+            $formattedRankings[] = $entry;
             $rank++;
         }
         

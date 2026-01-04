@@ -1308,12 +1308,56 @@ const RESOURCE_KEY_TO_NAME = {
     'plutonium': 'プルトニウム', 'silicon': 'シリコン',
     'rare_earth': 'レアアース', 'quantum_crystal': '量子結晶',
     'ai_core': 'AIコア', 'gene_sample': '遺伝子サンプル',
-    'dark_matter': 'ダークマター', 'antimatter': '反物質'
+    'dark_matter': 'ダークマター', 'antimatter': '反物質',
+    // 新時代の資源
+    'energy_charger': 'エネルギーチャージャー', 'tech_core': 'テックコア',
+    'portal_token': 'ポータルトークン', 'antimatter_particle': '反物質粒子',
+    'synthetic_particle': '合成素粒子', 'generation_unit': '生成単位',
+    'generation_gene': '生成遺伝子', 'movement_core': 'ムーブメントコア',
+    'generation_quantum': '生成量子', 'universe_tech': 'ユニバーステック',
+    'scrap_charge': 'スクラップチャージ', 'cache_cluster': 'キャッシュクラスタ',
+    'cosmic_shard': '宇宙シャード', 'quantum_module': '量子モジュール',
+    'planet_memory': '惑星メモリ', 'container_unlock_key': 'コンテナアンロックキー',
+    'cosmic_fossil': '宇宙化石', 'ai_crate': 'AIクレート',
+    'cosmic_console': '宇宙操作盤'
+};
+
+// 資源キーからアイコンへの変換マップ
+const RESOURCE_KEY_TO_ICON = {
+    'food': '🍖', 'wood': '🪵', 'stone': '🪨', 'bronze': '🔶',
+    'iron': '⚙️', 'gold': '💰', 'knowledge': '📚', 'oil': '🛢️',
+    'crystal': '💎', 'mana': '✨', 'uranium': '☢️',
+    'diamond': '💠', 'sulfur': '🔶', 'gems': '💎',
+    'cloth': '🧵', 'marble': '🏛️', 'horses': '🐴', 'coal': '⬛',
+    'glass': '🔮', 'spices': '🌶️', 'herbs': '🌿',
+    'medicine': '💊', 'steel': '⚙️', 'gunpowder': '💥',
+    'gunpowder_res': '💥', 'electronics': '🔌',
+    'bandages': '🩹', 'rubber': '⚫', 'titanium': '🔩',
+    'plutonium': '☢️', 'silicon': '🔲',
+    'rare_earth': '💫', 'quantum_crystal': '🔮',
+    'ai_core': '🧠', 'gene_sample': '🧬',
+    'dark_matter': '🌑', 'antimatter': '💥',
+    // 新時代の資源
+    'energy_charger': '🔋', 'tech_core': '💾',
+    'portal_token': '🌀', 'antimatter_particle': '⚛️',
+    'synthetic_particle': '🔬', 'generation_unit': '📊',
+    'generation_gene': '🧬', 'movement_core': '🎯',
+    'generation_quantum': '💠', 'universe_tech': '🌟',
+    'scrap_charge': '♻️', 'cache_cluster': '💽',
+    'cosmic_shard': '💎', 'quantum_module': '🔷',
+    'planet_memory': '🗄️', 'container_unlock_key': '🔑',
+    'cosmic_fossil': '🦴', 'ai_crate': '📦',
+    'cosmic_console': '🎛️'
 };
 
 // 資源キーを日本語名に変換
 function getResourceName(key) {
     return RESOURCE_KEY_TO_NAME[key] || key;
+}
+
+// 資源キーをアイコンに変換
+function getResourceIcon(key) {
+    return RESOURCE_KEY_TO_ICON[key] || '❓';
 }
 
 // ③ 設定保持用のlocalStorageキー
@@ -2786,7 +2830,9 @@ function renderBuildingsGrid(availableBuildings, ownedBuildings, resources) {
             const costs = JSON.parse(bt.base_build_cost_resources);
             Object.entries(costs).forEach(([key, val]) => {
                 const res = resources.find(r => r.resource_key === key);
-                costText += ` | ${res ? res.icon : '❓'} ${val}`;
+                const resIcon = res ? res.icon : getResourceIcon(key);
+                const resName = res ? res.name : getResourceName(key);
+                costText += ` | ${resIcon} ${resName}: ${val}`;
             });
         }
         
@@ -3426,16 +3472,20 @@ async function loadWarLogs() {
                         // 勝者: 略奪した資源を表示
                         lootText = `<div style="font-size: 11px; color: #32cd32; margin-top: 5px;">💰 略奪: ${log.loot_coins}コイン`;
                         for (const [key, val] of Object.entries(lootResources)) {
+                            const res = civData.resources.find(r => r.resource_key === key);
+                            const resIcon = res ? res.icon : getResourceIcon(key);
                             const resourceName = getResourceName(key);
-                            lootText += ` | ${resourceName}: +${val}`;
+                            lootText += ` | ${resIcon} ${resourceName}: +${val}`;
                         }
                         lootText += '</div>';
                     } else {
                         // 敗者: 奪われた資源を表示
                         lootText = `<div style="font-size: 11px; color: #ff6b6b; margin-top: 5px;">💸 損失: ${log.loot_coins}コイン`;
                         for (const [key, val] of Object.entries(lootResources)) {
+                            const res = civData.resources.find(r => r.resource_key === key);
+                            const resIcon = res ? res.icon : getResourceIcon(key);
                             const resourceName = getResourceName(key);
-                            lootText += ` | ${resourceName}: -${val}`;
+                            lootText += ` | ${resIcon} ${resourceName}: -${val}`;
                         }
                         lootText += '</div>';
                     }
@@ -3864,8 +3914,10 @@ function renderTroopsList(troops, userTroops, advantageInfo) {
             if (t.train_cost_resources) {
                 const costs = JSON.parse(t.train_cost_resources);
                 Object.entries(costs).forEach(([key, val]) => {
+                    const res = civData.resources.find(r => r.resource_key === key);
+                    const resIcon = res ? res.icon : getResourceIcon(key);
                     const resName = getResourceName(key);
-                    costText += ` | ${resName}: ${val}`;
+                    costText += ` | ${resIcon} ${resName}: ${val}`;
                 });
             }
             
@@ -4178,8 +4230,10 @@ async function loadWoundedTroops() {
                                 const healCosts = typeof w.heal_cost_resources === 'string' ? JSON.parse(w.heal_cost_resources) : w.heal_cost_resources;
                                 if (healCosts) {
                                     Object.entries(healCosts).forEach(([key, val]) => {
+                                        const res = civData.resources.find(r => r.resource_key === key);
+                                        const resIcon = res ? res.icon : getResourceIcon(key);
                                         const resName = getResourceName(key);
-                                        healCostText += ` | ${resName}: ${val}`;
+                                        healCostText += ` | ${resIcon} ${resName}: ${val}`;
                                     });
                                 }
                             } catch(e) {
@@ -5844,8 +5898,10 @@ async function loadCivilizationQuests() {
                 }
                 if (quest.reward_resources) {
                     for (const [key, amount] of Object.entries(quest.reward_resources)) {
+                        const res = civData.resources.find(r => r.resource_key === key);
+                        const resIcon = res ? res.icon : getResourceIcon(key);
                         const resourceName = getResourceName(key);
-                        rewardsHtml += `<span class="quest-reward-item">📦 ${resourceName} ${Number(amount).toLocaleString()}</span>`;
+                        rewardsHtml += `<span class="quest-reward-item">${resIcon} ${resourceName} ${Number(amount).toLocaleString()}</span>`;
                     }
                 }
                 
@@ -7617,7 +7673,7 @@ async function loadShelterProtection() {
         }
         
         let html = '';
-        troopsData.troops.forEach(t => {
+        troopsData.user_troops.forEach(t => {
             const protection = data.protections.find(p => p.troop_type_id == t.troop_type_id);
             html += renderShelterTroopItem(t.troop_type_id, t.icon, t.name, protection?.protected_count || 0, t.count);
         });
