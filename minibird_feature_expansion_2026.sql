@@ -446,6 +446,40 @@ UPDATE civilization_troop_types SET prerequisite_building_id = (SELECT id FROM c
 UPDATE civilization_troop_types SET prerequisite_building_id = (SELECT id FROM civilization_building_types WHERE building_key = 'galactic_fortress' LIMIT 1) WHERE troop_key = 'universal_destroyer';
 
 -- ===============================================
+-- ⑤ 保管庫とシェルターの選択機能を追加
+-- ユーザーが保護する資源（コイン含む）と兵士を選択できるようにする
+-- ===============================================
+
+-- 保管庫の保護資源選択テーブル
+CREATE TABLE IF NOT EXISTS user_vault_protected_resources (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    resource_type VARCHAR(50) NOT NULL COMMENT 'resource_type_id or "coins"',
+    protected_amount BIGINT NOT NULL DEFAULT 0 COMMENT '保護する数量',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_user_resource (user_id, resource_type),
+    INDEX idx_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+COMMENT='保管庫で保護する資源の選択';
+
+-- シェルターの保護兵種選択テーブル
+CREATE TABLE IF NOT EXISTS user_shelter_protected_troops (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    troop_type_id INT UNSIGNED NOT NULL,
+    protected_count INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '保護する兵士数',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (troop_type_id) REFERENCES civilization_troop_types(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_user_troop (user_id, troop_type_id),
+    INDEX idx_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+COMMENT='シェルターで保護する兵種の選択';
+
+-- ===============================================
 -- 完了メッセージ
 -- ===============================================
 SELECT 'MiniBird feature expansion 2026 schema applied successfully' AS status;

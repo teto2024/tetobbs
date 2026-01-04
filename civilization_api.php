@@ -6723,4 +6723,253 @@ if ($action === 'get_all_hero_assignments') {
     exit;
 }
 
+// ===============================================
+// ⑤ 保管庫・シェルター保護設定API
+// ===============================================
+
+// 保管庫の保護資源を取得
+if ($action === 'get_vault_protections') {
+    try {
+        // 保管庫の建物を確認
+        $stmt = $pdo->prepare("
+            SELECT ucb.level, bt.resource_protection_ratio
+            FROM user_civilization_buildings ucb
+            JOIN civilization_building_types bt ON ucb.building_type_id = bt.id
+            WHERE ucb.user_id = ? AND bt.building_key = 'vault' AND ucb.is_constructing = FALSE
+        ");
+        $stmt->execute([$me['id']]);
+        $vault = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$vault) {
+            echo json_encode(['ok' => false, 'error' => '保管庫が建設されていません']);
+            exit;
+        }
+        
+        // 人口を取得
+        $stmt = $pdo->prepare("SELECT population FROM user_civilizations WHERE user_id = ?");
+        $stmt->execute([$me['id']]);
+        $population = (int)$stmt->fetchColumn();
+        
+        // 保護可能な総量 = 人口 × 保護倍率 × レベル
+        $totalCapacity = (int)($population * $vault['resource_protection_ratio'] * $vault['level']);
+        
+        // 現在の保護設定を取得
+        $stmt = $pdo->prepare("
+            SELECT resource_type, protected_amount
+            FROM user_vault_protected_resources
+            WHERE user_id = ?
+        ");
+        $stmt->execute([$me['id']]);
+        $protections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        echo json_encode([
+            'ok' => true,
+            'vault_level' => $vault['level'],
+            'total_capacity' => $totalCapacity,
+            'protections' => $protections
+        ]);
+    } catch (Exception $e) {
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    }
+    exit;
+}
+
+// 保管庫の保護資源を設定
+if ($action === 'set_vault_protection') {
+    $resourceType = $input['resource_type'] ?? '';  // resource_type_id or "coins"
+    $amount = max(0, (int)($input['amount'] ?? 0));
+    
+    $pdo->beginTransaction();
+    try {
+        // 保管庫を確認
+        $stmt = $pdo->prepare("
+            SELECT ucb.level, bt.resource_protection_ratio
+            FROM user_civilization_buildings ucb
+            JOIN civilization_building_types bt ON ucb.building_type_id = bt.id
+            WHERE ucb.user_id = ? AND bt.building_key = 'vault' AND ucb.is_constructing = FALSE
+        ");
+        $stmt->execute([$me['id']]);
+        $vault = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$vault) {
+            throw new Exception('保管庫が建設されていません');
+        }
+        
+        // 人口を取得
+        $stmt = $pdo->prepare("SELECT population FROM user_civilizations WHERE user_id = ?");
+        $stmt->execute([$me['id']]);
+        $population = (int)$stmt->fetchColumn();
+        
+        // 保護可能な総量
+        $totalCapacity = (int)($population * $vault['resource_protection_ratio'] * $vault['level']);
+        
+        // 現在の保護総量を計算（変更する資源以外）
+        $stmt = $pdo->prepare("
+            SELECT COALESCE(SUM(protected_amount), 0) as total
+            FROM user_vault_protected_resources
+            WHERE user_id = ? AND resource_type != ?
+        ");
+        $stmt->execute([$me['id'], $resourceType]);
+        $currentTotal = (int)$stmt->fetchColumn();
+        
+        // 新しい設定が容量を超えないかチェック
+        if ($currentTotal + $amount > $totalCapacity) {
+            throw new Exception('保護容量を超えています');
+        }
+        
+        // 保護設定を更新
+        if ($amount > 0) {
+            $stmt = $pdo->prepare("
+                INSERT INTO user_vault_protected_resources (user_id, resource_type, protected_amount)
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE protected_amount = VALUES(protected_amount)
+            ");
+            $stmt->execute([$me['id'], $resourceType, $amount]);
+        } else {
+            // 0の場合は削除
+            $stmt = $pdo->prepare("
+                DELETE FROM user_vault_protected_resources
+                WHERE user_id = ? AND resource_type = ?
+            ");
+            $stmt->execute([$me['id'], $resourceType]);
+        }
+        
+        $pdo->commit();
+        echo json_encode(['ok' => true, 'message' => '保護設定を更新しました']);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    }
+    exit;
+}
+
+// シェルターの保護兵士を取得
+if ($action === 'get_shelter_protections') {
+    try {
+        // シェルターの建物を確認
+        $stmt = $pdo->prepare("
+            SELECT ucb.level, bt.troop_protection_ratio
+            FROM user_civilization_buildings ucb
+            JOIN civilization_building_types bt ON ucb.building_type_id = bt.id
+            WHERE ucb.user_id = ? AND bt.building_key = 'shelter' AND ucb.is_constructing = FALSE
+        ");
+        $stmt->execute([$me['id']]);
+        $shelter = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$shelter) {
+            echo json_encode(['ok' => false, 'error' => 'シェルターが建設されていません']);
+            exit;
+        }
+        
+        // 軍事力を取得
+        $militaryPowerData = calculateTotalMilitaryPower($pdo, $me['id']);
+        $militaryPower = $militaryPowerData['total_power'];
+        
+        // 保護可能な兵士数 = 軍事力 × 保護倍率 × レベル
+        $totalCapacity = (int)($militaryPower * $shelter['troop_protection_ratio'] * $shelter['level']);
+        
+        // 現在の保護設定を取得
+        $stmt = $pdo->prepare("
+            SELECT uspt.troop_type_id, uspt.protected_count, 
+                   tt.name, tt.icon
+            FROM user_shelter_protected_troops uspt
+            JOIN civilization_troop_types tt ON uspt.troop_type_id = tt.id
+            WHERE uspt.user_id = ?
+        ");
+        $stmt->execute([$me['id']]);
+        $protections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        echo json_encode([
+            'ok' => true,
+            'shelter_level' => $shelter['level'],
+            'total_capacity' => $totalCapacity,
+            'protections' => $protections
+        ]);
+    } catch (Exception $e) {
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    }
+    exit;
+}
+
+// シェルターの保護兵士を設定
+if ($action === 'set_shelter_protection') {
+    $troopTypeId = (int)($input['troop_type_id'] ?? 0);
+    $count = max(0, (int)($input['count'] ?? 0));
+    
+    $pdo->beginTransaction();
+    try {
+        // シェルターを確認
+        $stmt = $pdo->prepare("
+            SELECT ucb.level, bt.troop_protection_ratio
+            FROM user_civilization_buildings ucb
+            JOIN civilization_building_types bt ON ucb.building_type_id = bt.id
+            WHERE ucb.user_id = ? AND bt.building_key = 'shelter' AND ucb.is_constructing = FALSE
+        ");
+        $stmt->execute([$me['id']]);
+        $shelter = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$shelter) {
+            throw new Exception('シェルターが建設されていません');
+        }
+        
+        // 軍事力を取得
+        $militaryPowerData = calculateTotalMilitaryPower($pdo, $me['id']);
+        $militaryPower = $militaryPowerData['total_power'];
+        
+        // 保護可能な兵士数
+        $totalCapacity = (int)($militaryPower * $shelter['troop_protection_ratio'] * $shelter['level']);
+        
+        // 現在の保護総数を計算（変更する兵種以外）
+        $stmt = $pdo->prepare("
+            SELECT COALESCE(SUM(protected_count), 0) as total
+            FROM user_shelter_protected_troops
+            WHERE user_id = ? AND troop_type_id != ?
+        ");
+        $stmt->execute([$me['id'], $troopTypeId]);
+        $currentTotal = (int)$stmt->fetchColumn();
+        
+        // 新しい設定が容量を超えないかチェック
+        if ($currentTotal + $count > $totalCapacity) {
+            throw new Exception('保護容量を超えています');
+        }
+        
+        // ユーザーが実際に所有している兵士数を確認
+        $stmt = $pdo->prepare("
+            SELECT COALESCE(count, 0) as available
+            FROM user_civilization_troops
+            WHERE user_id = ? AND troop_type_id = ?
+        ");
+        $stmt->execute([$me['id'], $troopTypeId]);
+        $available = (int)$stmt->fetchColumn();
+        
+        if ($count > $available) {
+            throw new Exception('所有している兵士数を超えています');
+        }
+        
+        // 保護設定を更新
+        if ($count > 0) {
+            $stmt = $pdo->prepare("
+                INSERT INTO user_shelter_protected_troops (user_id, troop_type_id, protected_count)
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE protected_count = VALUES(protected_count)
+            ");
+            $stmt->execute([$me['id'], $troopTypeId, $count]);
+        } else {
+            // 0の場合は削除
+            $stmt = $pdo->prepare("
+                DELETE FROM user_shelter_protected_troops
+                WHERE user_id = ? AND troop_type_id = ?
+            ");
+            $stmt->execute([$me['id'], $troopTypeId]);
+        }
+        
+        $pdo->commit();
+        echo json_encode(['ok' => true, 'message' => '保護設定を更新しました']);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    }
+    exit;
+}
+
 echo json_encode(['ok' => false, 'error' => 'invalid_action']);
