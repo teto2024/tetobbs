@@ -7464,6 +7464,225 @@ setTimeout(loadMailUnreadCount, 1000);
 // 初期読み込み時に偵察レート制限を取得
 setTimeout(loadReconnaissanceStatus, 1500);
 
+// ===============================================
+// 保護設定機能のJavaScript
+// ===============================================
+
+// 保護設定を読み込む
+async function loadProtectionSettings() {
+    await loadVaultProtection();
+    await loadShelterProtection();
+}
+
+// 保管庫の保護設定を読み込む
+async function loadVaultProtection() {
+    const vaultInfo = document.getElementById('vault-info');
+    const vaultResources = document.getElementById('vault-resources');
+    
+    if (!vaultInfo || !vaultResources) return;
+    
+    try {
+        const res = await fetch('civilization_api.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action: 'get_vault_protections'})
+        });
+        const data = await res.json();
+        
+        if (!data.ok) {
+            vaultInfo.innerHTML = `<p style="color: #ff6b6b;">${data.error}</p>`;
+            vaultResources.innerHTML = '';
+            return;
+        }
+        
+        vaultInfo.innerHTML = `
+            <div style="font-size: 14px;">
+                <p>🏦 保管庫レベル: <span style="color: #ffd700;">${data.vault_level}</span></p>
+                <p>📦 保護可能容量: <span style="color: #90ee90;">${data.total_capacity.toLocaleString()}</span></p>
+                <p style="color: #888; font-size: 12px; margin-top: 5px;">※ 保護容量 = 人口 × 20 × 保管庫レベル</p>
+            </div>
+        `;
+        
+        // 資源リストを取得して表示
+        const resources = civData.resources.filter(r => r.unlocked);
+        let html = '';
+        
+        // コインも追加
+        const coinProtection = data.protections.find(p => p.resource_type === 'coins');
+        html += renderVaultResourceItem('coins', '🪙 コイン', coinProtection?.protected_amount || 0, civData.balance.coins);
+        
+        // 各資源
+        resources.forEach(r => {
+            const protection = data.protections.find(p => p.resource_type == r.resource_type_id);
+            html += renderVaultResourceItem(r.resource_type_id, `${r.icon} ${r.name}`, protection?.protected_amount || 0, r.amount);
+        });
+        
+        vaultResources.innerHTML = html;
+        
+    } catch (e) {
+        console.error(e);
+        vaultInfo.innerHTML = '<p style="color: #ff6b6b;">読み込みエラー</p>';
+    }
+}
+
+function renderVaultResourceItem(resourceType, label, protectedAmount, totalAmount) {
+    return `
+        <div style="background: rgba(0,0,0,0.4); padding: 15px; border-radius: 8px; border: 1px solid #555;">
+            <div style="margin-bottom: 10px;">
+                <span style="color: #ffd700; font-weight: bold;">${label}</span>
+                <div style="color: #c0a080; font-size: 13px; margin-top: 5px;">
+                    所有: ${totalAmount.toLocaleString()} / 保護中: <span style="color: #90ee90;">${protectedAmount.toLocaleString()}</span>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <input type="number" id="vault-${resourceType}" value="${protectedAmount}" min="0" max="${totalAmount}" 
+                       style="flex: 1; padding: 8px; background: rgba(0,0,0,0.5); border: 1px solid #666; border-radius: 4px; color: #fff;">
+                <button onclick="saveVaultProtection('${resourceType}')" 
+                        style="padding: 8px 15px; background: linear-gradient(135deg, #d4af37, #b8860b); color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                    保存
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+async function saveVaultProtection(resourceType) {
+    const input = document.getElementById(`vault-${resourceType}`);
+    const amount = parseInt(input.value) || 0;
+    
+    try {
+        const res = await fetch('civilization_api.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                action: 'set_vault_protection',
+                resource_type: resourceType,
+                amount: amount
+            })
+        });
+        const data = await res.json();
+        
+        if (data.ok) {
+            showNotification(data.message);
+            await loadVaultProtection();
+        } else {
+            showNotification(data.error, true);
+        }
+    } catch (e) {
+        console.error(e);
+        showNotification('エラーが発生しました', true);
+    }
+}
+
+// シェルターの保護設定を読み込む
+async function loadShelterProtection() {
+    const shelterInfo = document.getElementById('shelter-info');
+    const shelterTroops = document.getElementById('shelter-troops');
+    
+    if (!shelterInfo || !shelterTroops) return;
+    
+    try {
+        const res = await fetch('civilization_api.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action: 'get_shelter_protections'})
+        });
+        const data = await res.json();
+        
+        if (!data.ok) {
+            shelterInfo.innerHTML = `<p style="color: #ff6b6b;">${data.error}</p>`;
+            shelterTroops.innerHTML = '';
+            return;
+        }
+        
+        shelterInfo.innerHTML = `
+            <div style="font-size: 14px;">
+                <p>🛡️ シェルターレベル: <span style="color: #ffd700;">${data.shelter_level}</span></p>
+                <p>👥 保護可能兵士数: <span style="color: #90ee90;">${data.total_capacity.toLocaleString()}</span></p>
+                <p style="color: #888; font-size: 12px; margin-top: 5px;">※ 保護可能数 = 軍事力 × 0.001 × シェルターレベル</p>
+            </div>
+        `;
+        
+        // 兵種リストを取得
+        const troopsRes = await fetch('civilization_api.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action: 'get_troops'})
+        });
+        const troopsData = await troopsRes.json();
+        
+        if (!troopsData.ok) {
+            shelterTroops.innerHTML = '<p style="color: #ff6b6b;">兵種データの読み込みに失敗しました</p>';
+            return;
+        }
+        
+        let html = '';
+        troopsData.troops.forEach(t => {
+            const protection = data.protections.find(p => p.troop_type_id == t.troop_type_id);
+            html += renderShelterTroopItem(t.troop_type_id, t.icon, t.name, protection?.protected_count || 0, t.count);
+        });
+        
+        if (html === '') {
+            html = '<p style="color: #888;">訓練済みの兵士がいません</p>';
+        }
+        
+        shelterTroops.innerHTML = html;
+        
+    } catch (e) {
+        console.error(e);
+        shelterInfo.innerHTML = '<p style="color: #ff6b6b;">読み込みエラー</p>';
+    }
+}
+
+function renderShelterTroopItem(troopTypeId, icon, name, protectedCount, totalCount) {
+    return `
+        <div style="background: rgba(0,0,0,0.4); padding: 15px; border-radius: 8px; border: 1px solid #555;">
+            <div style="margin-bottom: 10px;">
+                <span style="color: #ffd700; font-weight: bold;">${icon} ${name}</span>
+                <div style="color: #c0a080; font-size: 13px; margin-top: 5px;">
+                    所有: ${totalCount.toLocaleString()} / 保護中: <span style="color: #90ee90;">${protectedCount.toLocaleString()}</span>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <input type="number" id="shelter-${troopTypeId}" value="${protectedCount}" min="0" max="${totalCount}" 
+                       style="flex: 1; padding: 8px; background: rgba(0,0,0,0.5); border: 1px solid #666; border-radius: 4px; color: #fff;">
+                <button onclick="saveShelterProtection(${troopTypeId})" 
+                        style="padding: 8px 15px; background: linear-gradient(135deg, #d4af37, #b8860b); color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                    保存
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+async function saveShelterProtection(troopTypeId) {
+    const input = document.getElementById(`shelter-${troopTypeId}`);
+    const count = parseInt(input.value) || 0;
+    
+    try {
+        const res = await fetch('civilization_api.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                action: 'set_shelter_protection',
+                troop_type_id: troopTypeId,
+                count: count
+            })
+        });
+        const data = await res.json();
+        
+        if (data.ok) {
+            showNotification(data.message);
+            await loadShelterProtection();
+        } else {
+            showNotification(data.error, true);
+        }
+    } catch (e) {
+        console.error(e);
+        showNotification('エラーが発生しました', true);
+    }
+}
+
 // 初期読み込み
 loadData();
 startUpdateTimer();
