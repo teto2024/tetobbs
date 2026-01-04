@@ -772,10 +772,22 @@ function calculateDamage($baseAttack, $targetArmor, $attackerEffects = [], $defe
         $messages[] = "💥 クリティカルヒット！";
     }
     
-    // アーマーによるダメージ軽減
+    // アーマーによるダメージ軽減（直接引き算方式、ダメージの90%を上限）
     $effectiveArmor = $targetArmor * $armorMultiplier;
-    $armorReduction = min(BATTLE_MAX_ARMOR_REDUCTION, $effectiveArmor / BATTLE_ARMOR_REDUCTION_DIVISOR);
-    $finalDamage = (int)max(BATTLE_MIN_DAMAGE, floor($attackWithVariance * (1 - $armorReduction)));
+    
+    // ダメージからアーマーを引く
+    $damageAfterArmor = $attackWithVariance - $effectiveArmor;
+    
+    // 最低でも元のダメージの10%は通す（90%軽減が上限）
+    $minDamage = $attackWithVariance * 0.1;
+    $finalDamage = (int)max($minDamage, $damageAfterArmor);
+    
+    // 絶対最小値を保証
+    $finalDamage = (int)max(BATTLE_MIN_DAMAGE, $finalDamage);
+    
+    // 軽減率を計算（情報表示用）
+    $armorReduction = ($attackWithVariance > 0) ? 
+        min(0.90, ($attackWithVariance - $damageAfterArmor) / $attackWithVariance) : 0;
     
     return [
         'damage' => $finalDamage,
@@ -1128,6 +1140,77 @@ function processDamageOverTime($unit) {
 }
 
 /**
+ * シナジースキルを全て発動（ターン1のみ、スキル発動上限には含めない）
+ * duration_turns が 99 以上のスキルを自動発動
+ * @param array $unit バトルユニット
+ * @param array $target ターゲットユニット
+ * @return array [effects, messages]
+ */
+function activateSynergySkills($unit, $target) {
+    $messages = [];
+    $newEffects = [];
+    
+    // duration_turns が 99 以上のスキルをシナジースキルとして判定
+    foreach ($unit['skills'] as $skill) {
+        // ヒーロースキルは除外
+        if (!empty($skill['is_hero_skill'])) {
+            continue;
+        }
+        
+        // シナジースキル（duration_turns >= 99）のみを対象
+        if ((int)$skill['duration_turns'] >= 99) {
+            // シナジー条件をチェック
+            $shouldActivate = false;
+            
+            // 潜水艦シナジー（巡洋艦）
+            if ($skill['skill_key'] === 'submarine_synergy') {
+                if (in_array('submarine', $unit['troop_keys']) || in_array('nuclear_submarine', $unit['troop_keys'])) {
+                    $shouldActivate = true;
+                }
+            }
+            // 海兵隊シナジー（強襲揚陸艦）
+            else if ($skill['skill_key'] === 'marine_synergy') {
+                if (in_array('marine', $unit['troop_keys'])) {
+                    $shouldActivate = true;
+                }
+            }
+            // 空カテゴリシナジー（強襲型空母）
+            else if ($skill['skill_key'] === 'air_superiority') {
+                if (in_array('air', $unit['domain_categories'])) {
+                    $shouldActivate = true;
+                }
+            }
+            // その他のシナジースキルはとりあえず全て発動
+            else {
+                $shouldActivate = true;
+            }
+            
+            if ($shouldActivate) {
+                $effect = [
+                    'skill_key' => $skill['skill_key'],
+                    'skill_name' => $skill['skill_name'],
+                    'skill_icon' => $skill['skill_icon'],
+                    'effect_type' => $skill['effect_type'],
+                    'effect_target' => $skill['effect_target'],
+                    'effect_value' => $skill['effect_value'],
+                    'remaining_turns' => $skill['duration_turns'],
+                    'troop_name' => $skill['troop_name'],
+                    'troop_icon' => $skill['troop_icon']
+                ];
+                
+                $newEffects[] = $effect;
+                $messages[] = "{$skill['troop_icon']} {$skill['troop_name']}が「{$skill['skill_icon']} {$skill['skill_name']}」を発動！";
+            }
+        }
+    }
+    
+    return [
+        'effects' => $newEffects,
+        'messages' => $messages
+    ];
+}
+
+/**
  * ターン制バトルを実行
  * @param array $attacker 攻撃側ユニット
  * @param array $defender 防御側ユニット
@@ -1145,6 +1228,27 @@ function executeTurnBattle($attacker, $defender, $maxTurns = null) {
         $currentTurn++;
         $turnMessages = [];
         $turnMessages[] = "===== ターン {$currentTurn} =====";
+        
+        // ターン1でシナジースキルを全て発動（スキル発動上限の3つには含めない）
+        if ($currentTurn === 1) {
+            // 攻撃側のシナジースキル発動
+            $attackerSynergyResult = activateSynergySkills($attacker, $defender);
+            if (!empty($attackerSynergyResult['messages'])) {
+                $turnMessages = array_merge($turnMessages, $attackerSynergyResult['messages']);
+            }
+            foreach ($attackerSynergyResult['effects'] as $effect) {
+                $attacker['active_effects'][] = $effect;
+            }
+            
+            // 防御側のシナジースキル発動
+            $defenderSynergyResult = activateSynergySkills($defender, $attacker);
+            if (!empty($defenderSynergyResult['messages'])) {
+                $turnMessages = array_merge($turnMessages, $defenderSynergyResult['messages']);
+            }
+            foreach ($defenderSynergyResult['effects'] as $effect) {
+                $defender['active_effects'][] = $effect;
+            }
+        }
         
         // --- 攻撃側のターン ---
         $attackerFrozen = false;
