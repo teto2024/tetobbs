@@ -439,7 +439,7 @@ $RESOURCE_VALUES = [
     'electronics' => 2.5,
     'herbs' => 2.5,
     'medicine' => 2.5,
-    'gunpowder' => 2.5
+    'gunpowder' => 2.5,
     // 新時代の資源
     'plutonium' => 5.5,
     'silicon' => 3.0,
@@ -570,26 +570,32 @@ function getUserCivilization($pdo, $userId) {
  * @return array ['attack' => float, 'armor' => float, 'health' => float] 各バフの合計値
  */
 function getUserEquipmentBuffs($pdo, $userId) {
-    $stmt = $pdo->prepare("
-        SELECT buffs FROM user_equipment 
-        WHERE user_id = ? AND is_equipped = 1
-    ");
-    $stmt->execute([$userId]);
-    $equippedItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
     $totalBuffs = [
         'attack' => 0,
         'armor' => 0,
         'health' => 0
     ];
     
-    foreach ($equippedItems as $item) {
-        $buffs = json_decode($item['buffs'], true) ?: [];
-        foreach ($totalBuffs as $key => $value) {
-            if (isset($buffs[$key])) {
-                $totalBuffs[$key] += (float)$buffs[$key];
+    try {
+        $stmt = $pdo->prepare("
+            SELECT buffs FROM user_equipment 
+            WHERE user_id = ? AND is_equipped = 1
+        ");
+        $stmt->execute([$userId]);
+        $equippedItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        foreach ($equippedItems as $item) {
+            $buffs = json_decode($item['buffs'], true) ?: [];
+            foreach ($totalBuffs as $key => $value) {
+                if (isset($buffs[$key])) {
+                    $totalBuffs[$key] += (float)$buffs[$key];
+                }
             }
         }
+    } catch (Exception $e) {
+        // テーブルが存在しない場合は、デフォルト値（0）を返す
+        // エラーログに記録するが、処理は継続
+        error_log("getUserEquipmentBuffs error: " . $e->getMessage());
     }
     
     return $totalBuffs;
