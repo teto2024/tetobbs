@@ -9,8 +9,10 @@ define('BATTLE_MAX_TURNS', 50);                     // 最大ターン数
 define('BATTLE_DAMAGE_VARIANCE', 0.2);              // ダメージの乱数幅（±20%）
 define('BATTLE_CRITICAL_MULTIPLIER', 1.5);          // クリティカルダメージ倍率
 define('BATTLE_BASE_CRITICAL_CHANCE', 5);           // 基本クリティカル率（%）
-define('BATTLE_ARMOR_REDUCTION_DIVISOR', 200);      // アーマーからダメージ軽減率への変換（200アーマー=50%軽減）
-define('BATTLE_MAX_ARMOR_REDUCTION', 0.75);         // 最大アーマー軽減率（75%）
+define('BATTLE_ARMOR_REDUCTION_DIVISOR', 200);      // アーマーからダメージ軽減率への変換（200アーマー=50%軽減）※旧方式
+define('BATTLE_MAX_ARMOR_REDUCTION', 0.75);         // 最大アーマー軽減率（75%）※旧方式
+define('BATTLE_MAX_ARMOR_REDUCTION_CAP', 0.90);     // 新アーマー計算：最大ダメージ軽減率（90%）
+define('BATTLE_MIN_DAMAGE_PERCENTAGE', 0.10);       // 新アーマー計算：最低保証ダメージ（元のダメージの10%）
 define('BATTLE_MIN_DAMAGE', 1);                     // 最小ダメージ
 define('BATTLE_EQUIPMENT_ATTACK_MULTIPLIER', 0.5);  // 装備攻撃力の適用倍率
 define('BATTLE_EQUIPMENT_ARMOR_MULTIPLIER', 1.0);   // 装備アーマーの適用倍率
@@ -19,6 +21,7 @@ define('BATTLE_DOT_BASE_HEALTH', 1000);              // 継続ダメージ計算
 define('BATTLE_DOT_SCALING_FACTOR', 0.3);            // 継続ダメージのスケーリング係数（0.3 = 30%）
 define('BATTLE_MAX_NEW_SKILL_ACTIVATIONS', 3);      // ① 1ターンに新たに発動可能なスキルの最大数
                                                      // 除外対象: 継続バフ/デバフ、即時ダメージ、回復、DOT、シナジー
+define('SYNERGY_SKILL_DURATION_THRESHOLD', 99);     // シナジースキル判定の継続ターン閾値
 
 // ③ ヒーロースキルシステム定数（見直し：発動率を下げ、ダメージ上限を動的に設定）
 define('HERO_SKILL_BASE_ACTIVATION_CHANCE', 15);     // ③ ヒーロースキル基本発動率（%）30→15に減少
@@ -807,7 +810,7 @@ function calculateDamage($baseAttack, $targetArmor, $attackerEffects = [], $defe
     $damageAfterArmor = $attackWithVariance - $effectiveArmor;
     
     // 最低でも元のダメージの10%は通す（90%軽減が上限）
-    $minDamage = $attackWithVariance * 0.1;
+    $minDamage = $attackWithVariance * BATTLE_MIN_DAMAGE_PERCENTAGE;
     $finalDamage = (int)max($minDamage, $damageAfterArmor);
     
     // 絶対最小値を保証
@@ -815,7 +818,7 @@ function calculateDamage($baseAttack, $targetArmor, $attackerEffects = [], $defe
     
     // 軽減率を計算（情報表示用）
     $armorReduction = ($attackWithVariance > 0) ? 
-        min(0.90, ($attackWithVariance - $damageAfterArmor) / $attackWithVariance) : 0;
+        min(BATTLE_MAX_ARMOR_REDUCTION_CAP, ($attackWithVariance - $damageAfterArmor) / $attackWithVariance) : 0;
     
     return [
         'damage' => $finalDamage,
@@ -936,7 +939,7 @@ function tryActivateSkill($unit, $target, $isAttacker) {
             // 放射能攻撃（継続ダメージ - 戦闘終了まで継続）
             else if ($skill['skill_key'] === 'radiation_attack') {
                 $effect['effect_type'] = 'damage_over_time';
-                $effect['remaining_turns'] = 99; // 戦闘終了まで継続
+                $effect['remaining_turns'] = SYNERGY_SKILL_DURATION_THRESHOLD; // 戦闘終了まで継続
                 $newEffects[] = $effect;
                 $messages[] = "☢️ 放射能攻撃！敵に継続的な放射能ダメージを与える！";
             }
@@ -1052,8 +1055,8 @@ function tryActivateSkill($unit, $target, $isAttacker) {
             else if (in_array($effect['effect_type'], ['damage_over_time', 'dot', 'nuclear_dot'])) {
                 $shouldCount = false;
             }
-            // シナジースキル（duration_turns が 99）はカウントしない
-            else if (isset($effect['remaining_turns']) && $effect['remaining_turns'] >= 99) {
+            // シナジースキル（duration_turns が SYNERGY_SKILL_DURATION_THRESHOLD 以上）はカウントしない
+            else if (isset($effect['remaining_turns']) && $effect['remaining_turns'] >= SYNERGY_SKILL_DURATION_THRESHOLD) {
                 $shouldCount = false;
             }
             
@@ -1169,7 +1172,7 @@ function processDamageOverTime($unit) {
 
 /**
  * シナジースキルを全て発動（ターン1のみ、スキル発動上限には含めない）
- * duration_turns が 99 以上のスキルを自動発動
+ * duration_turns が SYNERGY_SKILL_DURATION_THRESHOLD 以上のスキルを自動発動
  * @param array $unit バトルユニット
  * @param array $target ターゲットユニット
  * @return array [effects, messages]
@@ -1178,15 +1181,15 @@ function activateSynergySkills($unit, $target) {
     $messages = [];
     $newEffects = [];
     
-    // duration_turns が 99 以上のスキルをシナジースキルとして判定
+    // duration_turns が SYNERGY_SKILL_DURATION_THRESHOLD 以上のスキルをシナジースキルとして判定
     foreach ($unit['skills'] as $skill) {
         // ヒーロースキルは除外
         if (!empty($skill['is_hero_skill'])) {
             continue;
         }
         
-        // シナジースキル（duration_turns >= 99）のみを対象
-        if ((int)$skill['duration_turns'] >= 99) {
+        // シナジースキル（duration_turns >= SYNERGY_SKILL_DURATION_THRESHOLD）のみを対象
+        if ((int)$skill['duration_turns'] >= SYNERGY_SKILL_DURATION_THRESHOLD) {
             // シナジー条件をチェック
             $shouldActivate = false;
             
@@ -1197,19 +1200,20 @@ function activateSynergySkills($unit, $target) {
                 }
             }
             // 海兵隊シナジー（強襲揚陸艦）
-            else if ($skill['skill_key'] === 'marine_synergy') {
+            if ($skill['skill_key'] === 'marine_synergy') {
                 if (in_array('marine', $unit['troop_keys'])) {
                     $shouldActivate = true;
                 }
             }
             // 空カテゴリシナジー（強襲型空母）
-            else if ($skill['skill_key'] === 'air_superiority') {
+            if ($skill['skill_key'] === 'air_superiority') {
                 if (in_array('air', $unit['domain_categories'])) {
                     $shouldActivate = true;
                 }
             }
-            // その他のシナジースキルはとりあえず全て発動
-            else {
+            // その他の長期継続スキル（放射能攻撃など）も発動
+            // 特定のシナジー条件がない場合は常に発動
+            if (!in_array($skill['skill_key'], ['submarine_synergy', 'marine_synergy', 'air_superiority'])) {
                 $shouldActivate = true;
             }
             
