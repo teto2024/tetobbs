@@ -9,7 +9,20 @@ USE syugetsu2025_clone;
 -- ===============================================
 -- ④ 新時代を追加（現代Ⅵ → 銀河時代Ⅱ）
 -- 注意: 既存の宇宙時代(era_order=14)の後に追加
+-- ⑥ Era 9が欠番にならないよう、era 8-14も確認・追加
 -- ===============================================
+
+-- Era 8-14の確認（minibird_new_eras_2026.sqlで追加済みだが、念のため再度INSERT IGNORE）
+INSERT IGNORE INTO civilization_eras (era_key, name, icon, description, era_order, unlock_population, unlock_research_points, color) VALUES
+('atomic_age', '原子力時代', '☢️', '核エネルギーの発見。人類は新たな力を手に入れた。', 8, 8000, 50000, '#00FF00'),
+('modern_2', '現代Ⅱ', '🌐', 'インターネットの時代。情報革命が始まる。', 9, 12000, 80000, '#0080FF'),
+('modern_3', '現代Ⅲ', '📱', 'スマートフォンとSNSの時代。世界がつながる。', 10, 18000, 120000, '#FF69B4'),
+('quantum_revolution', '量子革命時代', '⚛️', '量子コンピューターの実用化。計算の限界を超える。', 11, 25000, 180000, '#8A2BE2'),
+('modern_4', '現代Ⅳ', '🤖', 'AI革命の時代。人工知能が社会を変える。', 12, 35000, 250000, '#FF4500'),
+('modern_5', '現代Ⅴ', '🧬', 'バイオテクノロジーの時代。生命の設計が可能に。', 13, 50000, 350000, '#32CD32'),
+('space_age', '宇宙時代', '🚀', '宇宙への進出。人類は新たなフロンティアを目指す。', 14, 75000, 500000, '#4B0082');
+
+-- 現代Ⅵ以降の新時代
 INSERT IGNORE INTO civilization_eras (era_key, name, icon, description, era_order, unlock_population, unlock_research_points, color) VALUES
 ('modern_6', '現代Ⅵ', '🌐', '情報技術の極限。AIと量子技術が融合する。', 15, 1000000, 2000000, '#00BFFF'),
 ('earth_revolution', '地球大革命時代', '🌍', '地球規模の変革。環境と技術の調和。', 16, 2000000, 3000000, '#228B22'),
