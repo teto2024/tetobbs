@@ -117,6 +117,10 @@ define('CIV_DEATH_RATE', 0.1);                    // 戦死率（10%）
 define('CIV_BASE_HEAL_TIME_SECONDS', 30);         // 基本治療時間（秒/兵士）
 define('CIV_HEAL_COST_COINS_PER_UNIT', 10);       // 治療コスト（コイン/兵士）
 
+// 時代制限定数
+define('CIV_MAX_ERA_DIFFERENCE', 2);              // 攻撃可能な最大時代差（2つまで許容、3つ以上は不可）
+define('CIV_ERA_ADVANCE_RESEARCH_LIMIT', 3);      // 時代進化時に表示する未完了研究の最大数
+
 // 訓練キューシステム定数
 define('CIV_INSTANT_TRAINING_MIN_COST', 2);       // 訓練即完了の最低クリスタルコスト
 define('CIV_INSTANT_HEALING_MIN_COST', 1);        // 治療即完了の最低クリスタルコスト
@@ -1973,8 +1977,8 @@ if ($action === 'advance_era') {
         $incompleteResearches = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         if (!empty($incompleteResearches)) {
-            $incompleteNames = array_slice(array_column($incompleteResearches, 'name'), 0, 3);
-            $remaining = count($incompleteResearches) - 3;
+            $incompleteNames = array_slice(array_column($incompleteResearches, 'name'), 0, CIV_ERA_ADVANCE_RESEARCH_LIMIT);
+            $remaining = count($incompleteResearches) - CIV_ERA_ADVANCE_RESEARCH_LIMIT;
             $message = "現在の時代の研究がまだ完了していません。未完了: " . implode('、', $incompleteNames);
             if ($remaining > 0) {
                 $message .= " 他{$remaining}件";
@@ -2064,7 +2068,7 @@ if ($action === 'attack') {
             throw new Exception('相手の文明が見つかりません');
         }
         
-        // ⑪ 時代差チェック（3つ以上離れていると攻め込めない）
+        // ⑪ 時代差チェック（CIV_MAX_ERA_DIFFERENCE以上離れていると攻め込めない）
         $stmt = $pdo->prepare("SELECT era_order FROM civilization_eras WHERE id = ?");
         $stmt->execute([$myCiv['current_era_id']]);
         $myEraOrder = (int)$stmt->fetchColumn();
@@ -2076,8 +2080,9 @@ if ($action === 'attack') {
         $targetEraName = $targetEraData['name'];
         
         $eraDiff = abs($myEraOrder - $targetEraOrder);
-        if ($eraDiff > 2) {
-            throw new Exception("時代が3つ以上離れている相手には攻め込めません（相手: {$targetEraName}、時代差: {$eraDiff}）");
+        if ($eraDiff > CIV_MAX_ERA_DIFFERENCE) {
+            $maxDiff = CIV_MAX_ERA_DIFFERENCE + 1;
+            throw new Exception("時代が{$maxDiff}つ以上離れている相手には攻め込めません（相手: {$targetEraName}、時代差: {$eraDiff}）");
         }
         
         // 軍事力を計算（建物 + 兵士 + 装備）
@@ -2323,7 +2328,7 @@ if ($action === 'get_targets') {
             // ⑪ 時代差を計算（2つまでは許容、3つ以上離れていると攻め込めない）
             $eraDiff = abs($myEraOrder - (int)$target['era_order']);
             $target['era_difference'] = $eraDiff;
-            $target['can_attack'] = $eraDiff <= 2; // 2つまでは許容
+            $target['can_attack'] = $eraDiff <= CIV_MAX_ERA_DIFFERENCE; // CIV_MAX_ERA_DIFFERENCEまでは許容
         }
         unset($target);
         

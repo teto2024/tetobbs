@@ -1292,6 +1292,7 @@ document.addEventListener('DOMContentLoaded', () => {
 const CIV_ARMOR_MAX_REDUCTION = 0.5;    // アーマーによる最大ダメージ軽減率（50%）
 const CIV_ARMOR_PERCENT_DIVISOR = 100;  // アーマー値を軽減率に変換する除数
 const CIV_ADVANTAGE_DISPLAY_THRESHOLD = 0.05; // 相性表示の閾値（±5%）
+const CIV_MAX_ERA_DIFFERENCE = 2;       // 攻撃可能な最大時代差（サーバーと同期）
 
 // 資源キーから日本語名への変換マップ
 const RESOURCE_KEY_TO_NAME = {
@@ -3300,7 +3301,7 @@ async function loadTargets() {
                     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 6px;">
                         <span style="font-size: 16px;">${t.era_icon || '🏛️'}</span>
                         <span style="color: #ffd700; font-size: 12px; font-weight: bold;">${escapeHtml(t.era_name || '不明')}</span>
-                        ${t.era_difference > 2 ? `<span style="color: #ff6b6b; font-size: 10px; margin-left: auto;">⚠️ 時代差${t.era_difference}</span>` : 
+                        ${t.era_difference > CIV_MAX_ERA_DIFFERENCE ? `<span style="color: #ff6b6b; font-size: 10px; margin-left: auto;">⚠️ 時代差${t.era_difference}</span>` : 
                           t.era_difference > 0 ? `<span style="color: #888; font-size: 10px; margin-left: auto;">時代差${t.era_difference}</span>` : ''}
                     </div>
                     ${troopCompText}
@@ -3320,7 +3321,7 @@ async function loadTargets() {
                     </div>
                     ` : `
                     <div style="background: rgba(255, 0, 0, 0.2); padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #ff6b6b;">
-                        <span style="color: #ff6b6b; font-weight: bold;">⚠️ 時代差3以上のため攻撃不可</span>
+                        <span style="color: #ff6b6b; font-weight: bold;">⚠️ 時代差${CIV_MAX_ERA_DIFFERENCE + 1}以上のため攻撃不可</span>
                         <div style="color: #888; font-size: 11px; margin-top: 5px;">時代が近い相手を選んでください</div>
                     </div>
                     `}

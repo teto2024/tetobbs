@@ -153,7 +153,7 @@ INSERT IGNORE INTO civilization_building_types (building_key, name, icon, descri
 -- 銀河時代Ⅱの建物
 INSERT IGNORE INTO civilization_building_types (building_key, name, icon, description, category, produces_resource_id, production_rate, max_level, unlock_era_id, base_build_cost_coins, base_build_cost_resources, base_build_time_seconds, population_capacity, military_power) VALUES
 ('galactic_federation_hq', '銀河連邦本部', '✨', '銀河連邦の中枢', 'special', NULL, 0, 1, 25, 100000000, '{"universe_tech": 5000, "ai_crate": 2000, "cosmic_console": 1000}', 1209600, 0, 100000),
-('universal_harmony', '宇宙調和施設', '🕊️', '究極の平和施設', 'special', NULL, 0, 1, 25, 150000000, '{"all_resources": 10000}', 1814400, 1000000, 500000);
+('universal_harmony', '宇宙調和施設', '🕊️', '究極の平和施設', 'special', NULL, 0, 1, 25, 150000000, '{"universe_tech": 5000, "ai_crate": 2000, "cosmic_console": 2000}', 1814400, 1000000, 500000);
 
 -- ===============================================
 -- ⑦ 新兵種を追加（各時代3〜4個）
