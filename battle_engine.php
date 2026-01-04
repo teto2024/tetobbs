@@ -824,6 +824,21 @@ function calculateDamage($baseAttack, $targetArmor, $attackerEffects = [], $defe
 }
 
 /**
+ * 現在アクティブな効果のスキルキーを取得
+ * @param array $activeEffects アクティブな効果のリスト
+ * @return array スキルキーの連想配列 [skill_key => true]
+ */
+function getActiveEffectKeys($activeEffects) {
+    $activeEffectKeys = [];
+    foreach ($activeEffects as $effect) {
+        if (isset($effect['skill_key'])) {
+            $activeEffectKeys[$effect['skill_key']] = true;
+        }
+    }
+    return $activeEffectKeys;
+}
+
+/**
  * スキル発動判定と効果適用
  * @param array $unit バトルユニット
  * @param array $target ターゲットユニット
@@ -841,12 +856,7 @@ function tryActivateSkill($unit, $target, $isAttacker) {
     $maxNewActivations = defined('BATTLE_MAX_NEW_SKILL_ACTIVATIONS') ? BATTLE_MAX_NEW_SKILL_ACTIVATIONS : 3;
     
     // 現在アクティブな継続効果のスキルキーを取得（これらはカウントから除外）
-    $activeEffectKeys = [];
-    foreach ($unit['active_effects'] as $effect) {
-        if (isset($effect['skill_key'])) {
-            $activeEffectKeys[$effect['skill_key']] = true;
-        }
-    }
+    $activeEffectKeys = getActiveEffectKeys($unit['active_effects']);
     
     // ① 兵種スキルとヒーロースキルを独立して発動
     // 複数の兵種スキルが同時に発動可能（ただし新規発動は最大3つまで）
@@ -1262,12 +1272,7 @@ function activateSynergySkills($unit, $target) {
     $newEffects = [];
     
     // 現在アクティブなスキルキーを取得（重複発動防止用）
-    $activeEffectKeys = [];
-    foreach ($unit['active_effects'] as $effect) {
-        if (isset($effect['skill_key'])) {
-            $activeEffectKeys[$effect['skill_key']] = true;
-        }
-    }
+    $activeEffectKeys = getActiveEffectKeys($unit['active_effects']);
     
     // duration_turns が SYNERGY_SKILL_DURATION_THRESHOLD 以上のスキルをシナジースキルとして判定
     foreach ($unit['skills'] as $skill) {
@@ -1276,13 +1281,13 @@ function activateSynergySkills($unit, $target) {
             continue;
         }
         
-        // 既にアクティブなシナジースキルはスキップ（重複発動防止）
-        if (isset($activeEffectKeys[$skill['skill_key']])) {
-            continue;
-        }
-        
         // シナジースキル（duration_turns >= SYNERGY_SKILL_DURATION_THRESHOLD）のみを対象
         if ((int)$skill['duration_turns'] >= SYNERGY_SKILL_DURATION_THRESHOLD) {
+            // 既にアクティブなシナジースキルはスキップ（重複発動防止）
+            if (isset($activeEffectKeys[$skill['skill_key']])) {
+                continue;
+            }
+            
             // シナジー条件をチェック
             // 条件付きシナジースキル: submarine_synergy, marine_synergy, air_superiority
             // submarine_synergy と marine_synergy は prepareBattleUnit で既に適用済みなので、
