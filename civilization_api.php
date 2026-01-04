@@ -592,10 +592,10 @@ function getUserEquipmentBuffs($pdo, $userId) {
                 }
             }
         }
-    } catch (Exception $e) {
+    } catch (PDOException $e) {
         // テーブルが存在しない場合は、デフォルト値（0）を返す
         // エラーログに記録するが、処理は継続
-        error_log("getUserEquipmentBuffs error: " . $e->getMessage());
+        error_log("Failed to get equipment buffs for user {$userId}: " . $e->getMessage());
     }
     
     return $totalBuffs;
