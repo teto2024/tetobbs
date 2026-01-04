@@ -1,10 +1,134 @@
 -- ===============================================
--- MiniBird 機能拡張スキーマ 2026
+-- MiniBird 機能拡張スキーマ 2026 (統合版)
 -- 新時代、新資源、新建物、新兵種、新研究、クエスト追加
 -- 保管庫・シェルター機能追加
+-- 時代ID 9欠番の修正を含む
 -- ===============================================
 
 USE syugetsu2025_clone;
+
+-- ===============================================
+-- ステップ0: 時代ID 9の欠番を修正（fix_missing_era_9.sqlの内容を統合）
+-- 注意: この処理は時代データを挿入する前に実行する必要があります
+-- ===============================================
+
+-- 時代ID 9が既に存在する場合はスキップ、存在しない場合のみ実行
+SET @era9_exists = (SELECT COUNT(*) FROM civilization_eras WHERE id = 9);
+
+-- era 9が存在しない場合のみID繰り上げ処理を実行
+-- このブロックは条件付きで実行されます
+SET @skip_fix = IF(@era9_exists > 0, 1, 0);
+
+-- 一時的に外部キー制約を無効化
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- ID繰り上げ処理（era 9が存在しない場合のみ）
+CREATE TEMPORARY TABLE IF NOT EXISTS temp_building_eras (
+    building_id BIGINT,
+    old_era_id INT,
+    new_era_id INT
+);
+
+INSERT INTO temp_building_eras (building_id, old_era_id, new_era_id)
+SELECT id, unlock_era_id, unlock_era_id - 1
+FROM civilization_building_types
+WHERE unlock_era_id >= 10 AND @skip_fix = 0;
+
+UPDATE civilization_building_types 
+SET unlock_era_id = NULL 
+WHERE unlock_era_id >= 10 AND @skip_fix = 0;
+
+CREATE TEMPORARY TABLE IF NOT EXISTS temp_research_eras (
+    research_id INT,
+    old_era_id INT,
+    new_era_id INT
+);
+
+INSERT INTO temp_research_eras (research_id, old_era_id, new_era_id)
+SELECT id, era_id, era_id - 1
+FROM civilization_researches
+WHERE era_id >= 10 AND @skip_fix = 0;
+
+UPDATE civilization_researches 
+SET era_id = NULL 
+WHERE era_id >= 10 AND @skip_fix = 0;
+
+CREATE TEMPORARY TABLE IF NOT EXISTS temp_troop_eras (
+    troop_id INT,
+    old_era_id INT,
+    new_era_id INT
+);
+
+INSERT INTO temp_troop_eras (troop_id, old_era_id, new_era_id)
+SELECT id, unlock_era_id, unlock_era_id - 1
+FROM civilization_troop_types
+WHERE unlock_era_id >= 10 AND @skip_fix = 0;
+
+UPDATE civilization_troop_types 
+SET unlock_era_id = NULL 
+WHERE unlock_era_id >= 10 AND @skip_fix = 0;
+
+CREATE TEMPORARY TABLE IF NOT EXISTS temp_user_eras (
+    user_id INT,
+    old_era_id INT,
+    new_era_id INT
+);
+
+INSERT INTO temp_user_eras (user_id, old_era_id, new_era_id)
+SELECT user_id, current_era_id, current_era_id - 1
+FROM user_civilizations
+WHERE current_era_id >= 10 AND @skip_fix = 0;
+
+UPDATE user_civilizations 
+SET current_era_id = NULL 
+WHERE current_era_id >= 10 AND @skip_fix = 0;
+
+-- 時代テーブルのIDを繰り上げ（小さい順に更新、era 9が存在しない場合のみ）
+UPDATE civilization_eras SET id = 9 WHERE id = 10 AND @skip_fix = 0;
+UPDATE civilization_eras SET id = 10 WHERE id = 11 AND @skip_fix = 0;
+UPDATE civilization_eras SET id = 11 WHERE id = 12 AND @skip_fix = 0;
+UPDATE civilization_eras SET id = 12 WHERE id = 13 AND @skip_fix = 0;
+UPDATE civilization_eras SET id = 13 WHERE id = 14 AND @skip_fix = 0;
+UPDATE civilization_eras SET id = 14 WHERE id = 15 AND @skip_fix = 0;
+UPDATE civilization_eras SET id = 15 WHERE id = 16 AND @skip_fix = 0;
+UPDATE civilization_eras SET id = 16 WHERE id = 17 AND @skip_fix = 0;
+UPDATE civilization_eras SET id = 17 WHERE id = 18 AND @skip_fix = 0;
+UPDATE civilization_eras SET id = 18 WHERE id = 19 AND @skip_fix = 0;
+UPDATE civilization_eras SET id = 19 WHERE id = 20 AND @skip_fix = 0;
+UPDATE civilization_eras SET id = 20 WHERE id = 21 AND @skip_fix = 0;
+UPDATE civilization_eras SET id = 21 WHERE id = 22 AND @skip_fix = 0;
+UPDATE civilization_eras SET id = 22 WHERE id = 23 AND @skip_fix = 0;
+UPDATE civilization_eras SET id = 23 WHERE id = 24 AND @skip_fix = 0;
+UPDATE civilization_eras SET id = 24 WHERE id = 25 AND @skip_fix = 0;
+UPDATE civilization_eras SET id = 25 WHERE id = 26 AND @skip_fix = 0;
+
+-- 参照を復元
+UPDATE civilization_building_types bt
+JOIN temp_building_eras tbe ON bt.id = tbe.building_id
+SET bt.unlock_era_id = tbe.new_era_id;
+
+UPDATE civilization_researches cr
+JOIN temp_research_eras tre ON cr.id = tre.research_id
+SET cr.era_id = tre.new_era_id;
+
+UPDATE civilization_troop_types ctt
+JOIN temp_troop_eras tte ON ctt.id = tte.troop_id
+SET ctt.unlock_era_id = tte.new_era_id;
+
+UPDATE user_civilizations uc
+JOIN temp_user_eras tue ON uc.user_id = tue.user_id
+SET uc.current_era_id = tue.new_era_id;
+
+-- 一時テーブルを削除
+DROP TEMPORARY TABLE IF EXISTS temp_building_eras;
+DROP TEMPORARY TABLE IF EXISTS temp_research_eras;
+DROP TEMPORARY TABLE IF EXISTS temp_troop_eras;
+DROP TEMPORARY TABLE IF EXISTS temp_user_eras;
+
+-- 外部キー制約を再度有効化
+SET FOREIGN_KEY_CHECKS = 1;
+
+SELECT IF(@skip_fix = 0, '✅ 時代IDの繰り上げが完了しました', 'ℹ️  時代ID 9は既に存在するためスキップしました') AS era_fix_status;
 
 -- ===============================================
 -- ④ 新時代を追加（現代Ⅵ → 銀河時代Ⅱ）
