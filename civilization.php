@@ -1364,6 +1364,17 @@ let selectedAttackTargetPower = 0; // 攻撃対象の防御力
 let userTroops = []; // ユーザーの兵士データ
 let deploymentLimit = { base_limit: 100, building_bonus: 0, total_limit: 100 }; // 出撃上限
 
+// ① 兵士タブのフィルター状態を保持
+let troopFilterState = {
+    categoryFilter: '',
+    domainFilter: '',
+    stealthFilter: '',
+    nuclearFilter: '',
+    disposableFilter: ''
+};
+// ① 兵士タブのスクロール位置を保持
+let troopScrollPosition = 0;
+
 // 攻撃モーダルを開く
 function openAttackModal(targetUserId, targetCivName, targetPower) {
     selectedAttackTarget = targetUserId;
@@ -3686,6 +3697,15 @@ function applyTroopFilters() {
     const nuclearFilter = document.getElementById('filter-nuclear')?.value || '';
     const disposableFilter = document.getElementById('filter-disposable')?.value || '';
     
+    // ① フィルター状態を保存
+    troopFilterState = {
+        categoryFilter: categoryFilter,
+        domainFilter: domainFilter,
+        stealthFilter: stealthFilter,
+        nuclearFilter: nuclearFilter,
+        disposableFilter: disposableFilter
+    };
+    
     const filteredTroops = allAvailableTroops.filter(t => {
         // 兵種相性フィルター
         if (categoryFilter && t.troop_category !== categoryFilter) {
@@ -3727,12 +3747,34 @@ function applyTroopFilters() {
 
 // ① フィルターをリセット
 function resetTroopFilters() {
+    troopFilterState = {
+        categoryFilter: '',
+        domainFilter: '',
+        stealthFilter: '',
+        nuclearFilter: '',
+        disposableFilter: ''
+    };
     document.getElementById('filter-troop-category').value = '';
     document.getElementById('filter-domain-category').value = '';
     document.getElementById('filter-stealth').value = '';
     document.getElementById('filter-nuclear').value = '';
     document.getElementById('filter-disposable').value = '';
     applyTroopFilters();
+}
+
+// ① フィルター状態を復元する関数
+function restoreTroopFilters() {
+    const categorySelect = document.getElementById('filter-troop-category');
+    const domainSelect = document.getElementById('filter-domain-category');
+    const stealthSelect = document.getElementById('filter-stealth');
+    const nuclearSelect = document.getElementById('filter-nuclear');
+    const disposableSelect = document.getElementById('filter-disposable');
+    
+    if (categorySelect) categorySelect.value = troopFilterState.categoryFilter;
+    if (domainSelect) domainSelect.value = troopFilterState.domainFilter;
+    if (stealthSelect) stealthSelect.value = troopFilterState.stealthFilter;
+    if (nuclearSelect) nuclearSelect.value = troopFilterState.nuclearFilter;
+    if (disposableSelect) disposableSelect.value = troopFilterState.disposableFilter;
 }
 
 // ① 兵種リストをレンダリング
@@ -4758,12 +4800,37 @@ function startUpdateTimer() {
             return;
         }
         
+        // ① 兵士タブがアクティブな場合、フィルター使用中またはスクロール中は更新をスキップ
+        if (currentTab === 'troops') {
+            const hasActiveFilter = troopFilterState.categoryFilter || troopFilterState.domainFilter || 
+                                    troopFilterState.stealthFilter || troopFilterState.nuclearFilter || 
+                                    troopFilterState.disposableFilter;
+            if (hasActiveFilter) {
+                // フィルター使用中は更新をスキップ
+                return;
+            }
+            // スクロール位置を保存
+            const troopsList = document.getElementById('troopsList');
+            if (troopsList) {
+                troopScrollPosition = troopsList.scrollTop;
+            }
+        }
+        
         // 完了チェック
         checkCompletions();
         
         // カウントダウンを更新するため、全体を再描画
         if (civData) {
             renderApp();
+            
+            // ① 兵士タブがアクティブな場合、スクロール位置とフィルターを復元
+            if (currentTab === 'troops') {
+                restoreTroopFilters();
+                const troopsList = document.getElementById('troopsList');
+                if (troopsList && troopScrollPosition > 0) {
+                    troopsList.scrollTop = troopScrollPosition;
+                }
+            }
             
             // メールタブがアクティブな場合、偵察レート制限表示を更新
             if (currentTab === 'mail') {

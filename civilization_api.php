@@ -1959,6 +1959,29 @@ if ($action === 'advance_era') {
             throw new Exception("研究ポイントが不足しています（必要: {$nextEra['unlock_research_points']}、現在: {$civ['research_points']}）");
         }
         
+        // ③ 全ての研究が完了しているかチェック
+        $stmt = $pdo->prepare("
+            SELECT cr.id, cr.name 
+            FROM civilization_researches cr
+            WHERE cr.era_id = ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM user_civilization_researches ucr 
+                  WHERE ucr.user_id = ? AND ucr.research_id = cr.id AND ucr.is_completed = TRUE
+              )
+        ");
+        $stmt->execute([$civ['current_era_id'], $me['id']]);
+        $incompleteResearches = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        if (!empty($incompleteResearches)) {
+            $incompleteNames = array_slice(array_column($incompleteResearches, 'name'), 0, 3);
+            $remaining = count($incompleteResearches) - 3;
+            $message = "現在の時代の研究がまだ完了していません。未完了: " . implode('、', $incompleteNames);
+            if ($remaining > 0) {
+                $message .= " 他{$remaining}件";
+            }
+            throw new Exception($message);
+        }
+        
         // 時代を進化
         $stmt = $pdo->prepare("
             UPDATE user_civilizations 
@@ -2039,6 +2062,22 @@ if ($action === 'attack') {
         
         if (!$targetCiv) {
             throw new Exception('相手の文明が見つかりません');
+        }
+        
+        // ⑪ 時代差チェック（3つ以上離れていると攻め込めない）
+        $stmt = $pdo->prepare("SELECT era_order FROM civilization_eras WHERE id = ?");
+        $stmt->execute([$myCiv['current_era_id']]);
+        $myEraOrder = (int)$stmt->fetchColumn();
+        
+        $stmt = $pdo->prepare("SELECT era_order, name FROM civilization_eras WHERE id = ?");
+        $stmt->execute([$targetCiv['current_era_id']]);
+        $targetEraData = $stmt->fetch(PDO::FETCH_ASSOC);
+        $targetEraOrder = (int)$targetEraData['era_order'];
+        $targetEraName = $targetEraData['name'];
+        
+        $eraDiff = abs($myEraOrder - $targetEraOrder);
+        if ($eraDiff > 2) {
+            throw new Exception("時代が3つ以上離れている相手には攻め込めません（相手: {$targetEraName}、時代差: {$eraDiff}）");
         }
         
         // 軍事力を計算（建物 + 兵士 + 装備）
@@ -2210,10 +2249,24 @@ if ($action === 'get_targets') {
         $stmt->execute([$me['id'], $me['id'], $me['id']]);
         $allyIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
         
+        // 自分の時代を取得
         $stmt = $pdo->prepare("
-            SELECT uc.user_id, uc.civilization_name, uc.population, u.handle, u.display_name
+            SELECT e.era_order, e.name as era_name
+            FROM user_civilizations uc
+            JOIN civilization_eras e ON uc.current_era_id = e.id
+            WHERE uc.user_id = ?
+        ");
+        $stmt->execute([$me['id']]);
+        $myEra = $stmt->fetch(PDO::FETCH_ASSOC);
+        $myEraOrder = $myEra ? (int)$myEra['era_order'] : 1;
+        
+        // ⑪ 時代情報を含めてターゲットを取得
+        $stmt = $pdo->prepare("
+            SELECT uc.user_id, uc.civilization_name, uc.population, u.handle, u.display_name,
+                   e.id as era_id, e.era_order, e.name as era_name, e.icon as era_icon
             FROM user_civilizations uc
             JOIN users u ON uc.user_id = u.id
+            JOIN civilization_eras e ON uc.current_era_id = e.id
             WHERE uc.user_id != ?
             ORDER BY uc.population DESC
             LIMIT 20
@@ -2239,6 +2292,11 @@ if ($action === 'get_targets') {
             
             // 同盟相手かどうかをマーク
             $target['is_ally'] = in_array($target['user_id'], $allyIds);
+            
+            // ⑪ 時代差を計算（2つまでは許容、3つ以上離れていると攻め込めない）
+            $eraDiff = abs($myEraOrder - (int)$target['era_order']);
+            $target['era_difference'] = $eraDiff;
+            $target['can_attack'] = $eraDiff <= 2; // 2つまでは許容
         }
         unset($target);
         
@@ -2246,7 +2304,9 @@ if ($action === 'get_targets') {
             'ok' => true, 
             'targets' => $targets,
             'my_military_power' => $myPowerData,
-            'my_troop_composition' => $myTroopComposition
+            'my_troop_composition' => $myTroopComposition,
+            'my_era_order' => $myEraOrder,
+            'my_era_name' => $myEra['era_name'] ?? '不明'
         ]);
     } catch (Exception $e) {
         echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
@@ -6264,6 +6324,41 @@ if ($action === 'get_leaderboards') {
                     WHERE total > ?
                 ");
                 $stmt->execute([$myValue]);
+                $myRank = (int)$stmt->fetchColumn();
+                break;
+            
+            case 'era':
+                // ⑫ 時代ランキング
+                $stmt = $pdo->query("
+                    SELECT uc.user_id, uc.civilization_name, e.era_order as value, u.handle, e.name as era_name, e.icon as era_icon
+                    FROM user_civilizations uc
+                    JOIN users u ON uc.user_id = u.id
+                    JOIN civilization_eras e ON uc.current_era_id = e.id
+                    ORDER BY e.era_order DESC, uc.population DESC
+                    LIMIT {$limit}
+                ");
+                $rankings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                // 自分の時代情報を取得
+                $stmt = $pdo->prepare("
+                    SELECT e.era_order, e.name as era_name, e.icon as era_icon
+                    FROM user_civilizations uc
+                    JOIN civilization_eras e ON uc.current_era_id = e.id
+                    WHERE uc.user_id = ?
+                ");
+                $stmt->execute([$me['id']]);
+                $myEraData = $stmt->fetch(PDO::FETCH_ASSOC);
+                $myValue = $myEraData ? (int)$myEraData['era_order'] : 0;
+                
+                // 自分の順位を取得（同じ時代の場合は人口で比較）
+                $stmt = $pdo->prepare("
+                    SELECT COUNT(*) + 1 as rank_position
+                    FROM user_civilizations uc
+                    JOIN civilization_eras e ON uc.current_era_id = e.id
+                    WHERE e.era_order > ? 
+                       OR (e.era_order = ? AND uc.population > (SELECT population FROM user_civilizations WHERE user_id = ?))
+                ");
+                $stmt->execute([$myValue, $myValue, $me['id']]);
                 $myRank = (int)$stmt->fetchColumn();
                 break;
                 
