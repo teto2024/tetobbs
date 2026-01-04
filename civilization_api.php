@@ -432,6 +432,10 @@ $RESOURCE_VALUES = [
     'bandages' => 1.5,
     'rubber' => 2.5,
     'titanium' => 4.0,
+    'electronics' => 2.5,
+    'herbs' => 2.5,
+    'medicine' => 2.5,
+    'gunpowder' => 2.5
     // 新時代の資源
     'plutonium' => 5.5,
     'silicon' => 3.0,
