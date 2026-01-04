@@ -1219,8 +1219,8 @@ function processDamageOverTime($unit) {
             // skill_keyまたはeffect_typeで判定
             if ($skillKey === 'nuclear_contamination' || $effect['effect_type'] === 'nuclear_dot') {
                 $baseDamage = $effect['effect_value'];
-                // 最大HPに応じてスケール（ただし上限500ダメージ）
-                $nuclearDamage = min(500, max($baseDamage, (int)floor(sqrt($unit['max_health']) * 2)));
+                // 最大HPに応じてスケール（ただし上限50000ダメージ）
+                $nuclearDamage = min(50000, max($baseDamage, (int)floor(sqrt($unit['max_health']) * 2)));
                 $totalDamage += $nuclearDamage;
                 $messages[] = "{$effect['skill_icon']} {$effect['skill_name']}により{$nuclearDamage}の放射能ダメージ！";
             } else {
