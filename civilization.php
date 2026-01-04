@@ -2786,7 +2786,9 @@ function renderBuildingsGrid(availableBuildings, ownedBuildings, resources) {
             const costs = JSON.parse(bt.base_build_cost_resources);
             Object.entries(costs).forEach(([key, val]) => {
                 const res = resources.find(r => r.resource_key === key);
-                costText += ` | ${res ? res.icon : '❓'} ${val}`;
+                const resIcon = res ? res.icon : '❓';
+                const resName = res ? res.name : getResourceName(key);
+                costText += ` | ${resIcon} ${resName}: ${val}`;
             });
         }
         
@@ -3426,16 +3428,20 @@ async function loadWarLogs() {
                         // 勝者: 略奪した資源を表示
                         lootText = `<div style="font-size: 11px; color: #32cd32; margin-top: 5px;">💰 略奪: ${log.loot_coins}コイン`;
                         for (const [key, val] of Object.entries(lootResources)) {
+                            const res = civData.resources.find(r => r.resource_key === key);
+                            const resIcon = res ? res.icon : '❓';
                             const resourceName = getResourceName(key);
-                            lootText += ` | ${resourceName}: +${val}`;
+                            lootText += ` | ${resIcon} ${resourceName}: +${val}`;
                         }
                         lootText += '</div>';
                     } else {
                         // 敗者: 奪われた資源を表示
                         lootText = `<div style="font-size: 11px; color: #ff6b6b; margin-top: 5px;">💸 損失: ${log.loot_coins}コイン`;
                         for (const [key, val] of Object.entries(lootResources)) {
+                            const res = civData.resources.find(r => r.resource_key === key);
+                            const resIcon = res ? res.icon : '❓';
                             const resourceName = getResourceName(key);
-                            lootText += ` | ${resourceName}: -${val}`;
+                            lootText += ` | ${resIcon} ${resourceName}: -${val}`;
                         }
                         lootText += '</div>';
                     }
@@ -3864,8 +3870,10 @@ function renderTroopsList(troops, userTroops, advantageInfo) {
             if (t.train_cost_resources) {
                 const costs = JSON.parse(t.train_cost_resources);
                 Object.entries(costs).forEach(([key, val]) => {
+                    const res = civData.resources.find(r => r.resource_key === key);
+                    const resIcon = res ? res.icon : '❓';
                     const resName = getResourceName(key);
-                    costText += ` | ${resName}: ${val}`;
+                    costText += ` | ${resIcon} ${resName}: ${val}`;
                 });
             }
             
@@ -4178,8 +4186,10 @@ async function loadWoundedTroops() {
                                 const healCosts = typeof w.heal_cost_resources === 'string' ? JSON.parse(w.heal_cost_resources) : w.heal_cost_resources;
                                 if (healCosts) {
                                     Object.entries(healCosts).forEach(([key, val]) => {
+                                        const res = civData.resources.find(r => r.resource_key === key);
+                                        const resIcon = res ? res.icon : '❓';
                                         const resName = getResourceName(key);
-                                        healCostText += ` | ${resName}: ${val}`;
+                                        healCostText += ` | ${resIcon} ${resName}: ${val}`;
                                     });
                                 }
                             } catch(e) {
@@ -5844,8 +5854,10 @@ async function loadCivilizationQuests() {
                 }
                 if (quest.reward_resources) {
                     for (const [key, amount] of Object.entries(quest.reward_resources)) {
+                        const res = civData.resources.find(r => r.resource_key === key);
+                        const resIcon = res ? res.icon : '❓';
                         const resourceName = getResourceName(key);
-                        rewardsHtml += `<span class="quest-reward-item">📦 ${resourceName} ${Number(amount).toLocaleString()}</span>`;
+                        rewardsHtml += `<span class="quest-reward-item">${resIcon} ${resourceName} ${Number(amount).toLocaleString()}</span>`;
                     }
                 }
                 
@@ -7617,7 +7629,7 @@ async function loadShelterProtection() {
         }
         
         let html = '';
-        troopsData.troops.forEach(t => {
+        troopsData.user_troops.forEach(t => {
             const protection = data.protections.find(p => p.troop_type_id == t.troop_type_id);
             html += renderShelterTroopItem(t.troop_type_id, t.icon, t.name, protection?.protected_count || 0, t.count);
         });
