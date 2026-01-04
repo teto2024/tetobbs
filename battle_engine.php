@@ -1026,33 +1026,39 @@ function tryActivateSkill($unit, $target, $isAttacker) {
                 $newEffects[] = $effect;
                 $messages[] = "🔧 自動修復！ダメージを自動で回復！";
             }
-            // 爆弾投下（海カテゴリに2倍ダメージ）
+            // 爆弾投下（海カテゴリにダメージ倍増）
             else if ($skill['skill_key'] === 'bomb_drop') {
                 // 敵が海カテゴリかチェック
                 if (isset($target['domain_categories']) && in_array('sea', $target['domain_categories'])) {
-                    $bombDamage = (int)floor($skill['troop_attack_power'] * 2); // 2倍ダメージ
+                    // effect_value = 100 → 100%増加 = 2倍
+                    $multiplier = 1 + ($skill['effect_value'] / 100);
+                    $bombDamage = (int)floor($skill['troop_attack_power'] * $multiplier);
                     $effect['instant_damage'] = $bombDamage;
                     $effect['effect_type'] = 'instant_damage';
                     $newEffects[] = $effect;
                     $messages[] = "💣 爆弾投下！海カテゴリに{$bombDamage}ダメージ！";
                 }
             }
-            // レーザー照射（空カテゴリに2倍ダメージ）
+            // レーザー照射（空カテゴリにダメージ倍増）
             else if ($skill['skill_key'] === 'laser_irradiation') {
                 // 敵が空カテゴリかチェック
                 if (isset($target['domain_categories']) && in_array('air', $target['domain_categories'])) {
-                    $laserDamage = (int)floor($skill['troop_attack_power'] * 2); // 2倍ダメージ
+                    // effect_value = 100 → 100%増加 = 2倍
+                    $multiplier = 1 + ($skill['effect_value'] / 100);
+                    $laserDamage = (int)floor($skill['troop_attack_power'] * $multiplier);
                     $effect['instant_damage'] = $laserDamage;
                     $effect['effect_type'] = 'instant_damage';
                     $newEffects[] = $effect;
                     $messages[] = "🔦 レーザー照射！空カテゴリに{$laserDamage}ダメージ！";
                 }
             }
-            // 散弾発射（陸カテゴリに2倍ダメージ）
+            // 散弾発射（陸カテゴリにダメージ倍増）
             else if ($skill['skill_key'] === 'shrapnel_fire') {
                 // 敵が陸カテゴリかチェック
                 if (isset($target['domain_categories']) && in_array('land', $target['domain_categories'])) {
-                    $shrapnelDamage = (int)floor($skill['troop_attack_power'] * 2); // 2倍ダメージ
+                    // effect_value = 100 → 100%増加 = 2倍
+                    $multiplier = 1 + ($skill['effect_value'] / 100);
+                    $shrapnelDamage = (int)floor($skill['troop_attack_power'] * $multiplier);
                     $effect['instant_damage'] = $shrapnelDamage;
                     $effect['effect_type'] = 'instant_damage';
                     $newEffects[] = $effect;
@@ -1061,7 +1067,8 @@ function tryActivateSkill($unit, $target, $isAttacker) {
             }
             // 投石（アーマー貫通ダメージ）
             else if ($skill['skill_key'] === 'stone_throw') {
-                $stoneDamage = (int)floor($skill['troop_attack_power']);
+                // effect_value = 100 → 100%の攻撃力
+                $stoneDamage = (int)floor($skill['troop_attack_power'] * ($skill['effect_value'] / 100));
                 $effect['instant_damage'] = $stoneDamage;
                 $effect['effect_type'] = 'instant_damage';
                 $effect['ignore_defense'] = true; // アーマー貫通
@@ -1070,8 +1077,9 @@ function tryActivateSkill($unit, $target, $isAttacker) {
             }
             // 自律飛行（3回連続攻撃）
             else if ($skill['skill_key'] === 'autonomous_flight') {
-                $extraAttacks += 2; // 通常の1回 + 追加2回 = 合計3回
-                $messages[] = "🚀 自律飛行！3回連続攻撃！";
+                // effect_value = 3 → 3回攻撃
+                $extraAttacks += (int)$skill['effect_value'] - 1; // 通常の1回 + 追加(3-1)回
+                $messages[] = "🚀 自律飛行！{$skill['effect_value']}回連続攻撃！";
             }
             // 核武装解除（核カテゴリに大ダメージ）
             else if ($skill['skill_key'] === 'nuclear_disarm') {
@@ -1090,7 +1098,9 @@ function tryActivateSkill($unit, $target, $isAttacker) {
                     }
                 }
                 if ($hasNuclearUnit) {
-                    $nuclearDamage = (int)floor($skill['troop_attack_power'] * 2); // 核ユニットに2倍ダメージ
+                    // effect_value = 100 → 100%増加 = 2倍
+                    $multiplier = 1 + ($skill['effect_value'] / 100);
+                    $nuclearDamage = (int)floor($skill['troop_attack_power'] * $multiplier);
                     $effect['instant_damage'] = $nuclearDamage;
                     $effect['effect_type'] = 'instant_damage';
                     $newEffects[] = $effect;
