@@ -496,6 +496,7 @@ function prepareBattleUnit($troops, $equipmentBuffs, $pdo) {
     $troopKeys = [];  // 出撃中の兵種キーを収集（シナジー判定用）
     $domainCategories = [];  // 出撃中の領域カテゴリを収集（陸・海・空）
     
+    // 第1パス: 兵種キーとカテゴリを収集（シナジー判定用）
     foreach ($troops as $troop) {
         $troopType = getTroopTypeWithSkill($pdo, $troop['troop_type_id']);
         if (!$troopType) continue;
@@ -503,21 +504,67 @@ function prepareBattleUnit($troops, $equipmentBuffs, $pdo) {
         $count = (int)$troop['count'];
         if ($count <= 0) continue;
         
-        $attack = (int)$troopType['attack_power'] * $count;
-        $defense = (int)$troopType['defense_power'] * $count;
-        $health = (int)($troopType['health_points'] ?? 100) * $count;
-        
-        $totalAttack += $attack;
-        $totalArmor += $defense;
-        $totalHealth += $health;
-        
-        // 兵種キーと領域カテゴリを収集
         if (!empty($troopType['troop_key'])) {
             $troopKeys[] = $troopType['troop_key'];
         }
         if (!empty($troopType['domain_category'])) {
             $domainCategories[] = $troopType['domain_category'];
         }
+    }
+    
+    // シナジー条件をチェック
+    $hasSubmarineSynergy = in_array('cruiser', $troopKeys) && (in_array('submarine', $troopKeys) || in_array('nuclear_submarine', $troopKeys));
+    $hasMarineSynergy = in_array('assault_ship', $troopKeys) && in_array('marine', $troopKeys);
+    $hasAirSuperiority = in_array('assault_carrier', $troopKeys) && in_array('air', $domainCategories);
+    
+    $synergyMessages = [];
+    if ($hasSubmarineSynergy) {
+        $synergyMessages[] = '🔱 対潜連携準備完了！';
+    }
+    if ($hasMarineSynergy) {
+        $synergyMessages[] = '⚓ 上陸支援準備完了！';
+    }
+    if ($hasAirSuperiority) {
+        $synergyMessages[] = '✈️ 制空権準備完了！';
+    }
+    
+    // 第2パス: ステータスを計算（個別兵種にシナジーを適用）
+    foreach ($troops as $troop) {
+        $troopType = getTroopTypeWithSkill($pdo, $troop['troop_type_id']);
+        if (!$troopType) continue;
+        
+        $count = (int)$troop['count'];
+        if ($count <= 0) continue;
+        
+        $troopKey = $troopType['troop_key'] ?? '';
+        
+        // 個別兵種のシナジー倍率を適用
+        $troopAttackMultiplier = 1.0;
+        $troopArmorMultiplier = 1.0;
+        $troopHealthMultiplier = 1.0;
+        
+        // 潜水艦シナジー: 巡洋艦のみステータス2倍
+        if ($hasSubmarineSynergy && $troopKey === 'cruiser') {
+            $troopAttackMultiplier += 1.0;  // +100% = 2倍
+            $troopArmorMultiplier += 1.0;
+            $troopHealthMultiplier += 1.0;
+        }
+        
+        // 海兵隊シナジー: 強襲揚陸艦のみステータス3倍
+        if ($hasMarineSynergy && $troopKey === 'assault_ship') {
+            $troopAttackMultiplier += 2.0;  // +200% = 3倍
+            $troopArmorMultiplier += 2.0;
+            $troopHealthMultiplier += 2.0;
+        }
+        
+        // ステータス計算（シナジー倍率を個別適用）
+        $attack = (int)floor((int)$troopType['attack_power'] * $count * $troopAttackMultiplier);
+        $defense = (int)floor((int)$troopType['defense_power'] * $count * $troopArmorMultiplier);
+        $health = (int)floor((int)($troopType['health_points'] ?? 100) * $count * $troopHealthMultiplier);
+        
+        $totalAttack += $attack;
+        $totalArmor += $defense;
+        $totalHealth += $health;
         
         // スキル情報を収集
         if (!empty($troopType['skill_key'])) {
@@ -534,7 +581,7 @@ function prepareBattleUnit($troops, $equipmentBuffs, $pdo) {
                 'troop_name' => $troopType['name'],
                 'troop_icon' => $troopType['icon'],
                 'count' => $count,
-                'troop_attack_power' => $attack  // ④ スキル持ち部隊の合計攻撃力（兵士1体の攻撃力×兵数）
+                'troop_attack_power' => $attack  // ④ スキル持ち部隊の合計攻撃力（兵士1体の攻撃力×兵数×シナジー倍率）
             ];
         }
         
@@ -548,37 +595,9 @@ function prepareBattleUnit($troops, $equipmentBuffs, $pdo) {
             'health' => $health,
             'category' => $troopType['troop_category'] ?? 'infantry',
             'domain_category' => $troopType['domain_category'] ?? 'land',
-            'troop_key' => $troopType['troop_key'] ?? '',
+            'troop_key' => $troopKey,
             'is_disposable' => !empty($troopType['is_disposable'])
         ];
-    }
-    
-    // シナジースキルの効果を計算（加算方式）
-    // 注: 攻撃力とアーマーのシナジーボーナスはターン1でスキル発動により適用される
-    // ここではHP倍率のみ適用（HPは戦闘開始時に固定されるため）
-    $attackMultiplier = 1.0;
-    $armorMultiplier = 1.0;
-    $healthMultiplier = 1.0;
-    $synergyMessages = [];
-    
-    // 潜水艦シナジー（巡洋艦: 潜水艦と同時出撃でステータス2倍）
-    // HPのみここで適用、攻撃力とアーマーはターン1でスキル発動時に適用
-    if (in_array('cruiser', $troopKeys) && (in_array('submarine', $troopKeys) || in_array('nuclear_submarine', $troopKeys))) {
-        $healthMultiplier += 1.0;  // +100% = 2倍
-        $synergyMessages[] = '🔱 対潜連携準備完了！';
-    }
-    
-    // 海兵隊シナジー（強襲揚陸艦: 海兵隊と同時出撃でステータス3倍）
-    // HPのみここで適用、攻撃力とアーマーはターン1でスキル発動時に適用
-    if (in_array('assault_ship', $troopKeys) && in_array('marine', $troopKeys)) {
-        $healthMultiplier += 2.0;  // +200% = 3倍
-        $synergyMessages[] = '⚓ 上陸支援準備完了！';
-    }
-    
-    // 空カテゴリシナジー（強襲型空母: 空カテゴリと同時出撃で攻撃力40%UP）
-    // 攻撃力のみの効果なので、ターン1でスキル発動時に適用
-    if (in_array('assault_carrier', $troopKeys) && in_array('air', $domainCategories)) {
-        $synergyMessages[] = '✈️ 制空権準備完了！';
     }
     
     // 装備バフを追加
@@ -586,11 +605,10 @@ function prepareBattleUnit($troops, $equipmentBuffs, $pdo) {
     $equipArmorBonus = (int)floor(($equipmentBuffs['armor'] ?? 0) * BATTLE_EQUIPMENT_ARMOR_MULTIPLIER);
     $equipHealthBonus = (int)floor(($equipmentBuffs['health'] ?? 0) * BATTLE_EQUIPMENT_HEALTH_MULTIPLIER);
     
-    // 攻撃力とアーマーには装備ボーナスのみ適用（シナジーはターン1のスキル発動で適用）
-    // HPにはシナジー倍率も適用（戦闘開始時に固定されるため）
-    $finalAttack = (int)floor(($totalAttack + $equipAttackBonus) * $attackMultiplier);
-    $finalArmor = (int)floor(($totalArmor + $equipArmorBonus) * $armorMultiplier);
-    $finalHealth = (int)floor(($totalHealth + $equipHealthBonus) * $healthMultiplier);
+    // 装備ボーナスを追加（シナジーは既に個別適用済み）
+    $finalAttack = $totalAttack + $equipAttackBonus;
+    $finalArmor = $totalArmor + $equipArmorBonus;
+    $finalHealth = $totalHealth + $equipHealthBonus;
     
     return [
         'attack' => $finalAttack,
@@ -638,19 +656,7 @@ function calculateDamage($baseAttack, $targetArmor, $attackerEffects = [], $defe
             $messages[] = "🩸 血の渇望！攻撃力上昇 (+{$effect['effect_value']}%)";
         }
         
-        // シナジースキル: 潜水艦シナジー
-        if ($effect['skill_key'] === 'submarine_synergy') {
-            $attackMultiplier += $effect['effect_value'] / 100;
-            $messages[] = "🔱 対潜連携！攻撃力上昇 (+{$effect['effect_value']}%)";
-        }
-        
-        // シナジースキル: 海兵隊シナジー
-        if ($effect['skill_key'] === 'marine_synergy') {
-            $attackMultiplier += $effect['effect_value'] / 100;
-            $messages[] = "⚓ 上陸支援！攻撃力上昇 (+{$effect['effect_value']}%)";
-        }
-        
-        // シナジースキル: 空カテゴリシナジー
+        // シナジースキル: 空カテゴリシナジー（全体適用）
         if ($effect['skill_key'] === 'air_superiority') {
             $attackMultiplier += $effect['effect_value'] / 100;
             $messages[] = "✈️ 制空権！攻撃力上昇 (+{$effect['effect_value']}%)";
@@ -749,18 +755,6 @@ function calculateDamage($baseAttack, $targetArmor, $attackerEffects = [], $defe
         if ($effect['skill_key'] === 'weaken') {
             $armorMultiplier -= $effect['effect_value'] / 100;
             $messages[] = "💀 弱体化！防御力低下 (-{$effect['effect_value']}%)";
-        }
-        
-        // シナジースキル: 潜水艦シナジー（防御側の効果）
-        if ($effect['skill_key'] === 'submarine_synergy') {
-            $armorMultiplier += $effect['effect_value'] / 100;
-            $messages[] = "🔱 対潜連携！防御力上昇 (+{$effect['effect_value']}%)";
-        }
-        
-        // シナジースキル: 海兵隊シナジー（防御側の効果）
-        if ($effect['skill_key'] === 'marine_synergy') {
-            $armorMultiplier += $effect['effect_value'] / 100;
-            $messages[] = "⚓ 上陸支援！防御力上昇 (+{$effect['effect_value']}%)";
         }
     }
     $armorMultiplier = max(0, $armorMultiplier);
@@ -1273,29 +1267,28 @@ function activateSynergySkills($unit, $target) {
         if ((int)$skill['duration_turns'] >= SYNERGY_SKILL_DURATION_THRESHOLD) {
             // シナジー条件をチェック
             // 条件付きシナジースキル: submarine_synergy, marine_synergy, air_superiority
+            // submarine_synergy と marine_synergy は prepareBattleUnit で既に適用済みなので、
+            // ここでは発動しない（全体適用を防ぐため）
+            // air_superiority のみ全体適用のためここで発動
             // これら以外の長期継続スキル（例: radiation_attack）は常に発動
             $shouldActivate = false;
             
-            // 潜水艦シナジー（巡洋艦）: 潜水艦または原子力潜水艦が同時出撃している必要あり
+            // 潜水艦シナジー: prepareBattleUnit で既に適用済みなのでスキップ
             if ($skill['skill_key'] === 'submarine_synergy') {
-                if (in_array('submarine', $unit['troop_keys']) || in_array('nuclear_submarine', $unit['troop_keys'])) {
-                    $shouldActivate = true;
-                }
+                $shouldActivate = false;
             }
-            // 海兵隊シナジー（強襲揚陸艦）: 海兵隊が同時出撃している必要あり
-            if ($skill['skill_key'] === 'marine_synergy') {
-                if (in_array('marine', $unit['troop_keys'])) {
-                    $shouldActivate = true;
-                }
+            // 海兵隊シナジー: prepareBattleUnit で既に適用済みなのでスキップ
+            else if ($skill['skill_key'] === 'marine_synergy') {
+                $shouldActivate = false;
             }
-            // 空カテゴリシナジー（強襲型空母）: 空カテゴリが同時出撃している必要あり
-            if ($skill['skill_key'] === 'air_superiority') {
+            // 空カテゴリシナジー（強襲型空母）: 空カテゴリが同時出撃している必要あり（全体適用）
+            else if ($skill['skill_key'] === 'air_superiority') {
                 if (in_array('air', $unit['domain_categories'])) {
                     $shouldActivate = true;
                 }
             }
             // その他の長期継続スキル（放射能攻撃など）は条件なしで発動
-            if (!in_array($skill['skill_key'], ['submarine_synergy', 'marine_synergy', 'air_superiority'])) {
+            else if (!in_array($skill['skill_key'], ['submarine_synergy', 'marine_synergy', 'air_superiority'])) {
                 $shouldActivate = true;
             }
             
