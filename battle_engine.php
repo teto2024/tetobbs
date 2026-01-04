@@ -9,8 +9,8 @@ define('BATTLE_MAX_TURNS', 50);                     // 最大ターン数
 define('BATTLE_DAMAGE_VARIANCE', 0.2);              // ダメージの乱数幅（±20%）
 define('BATTLE_CRITICAL_MULTIPLIER', 1.5);          // クリティカルダメージ倍率
 define('BATTLE_BASE_CRITICAL_CHANCE', 5);           // 基本クリティカル率（%）
-define('BATTLE_ARMOR_REDUCTION_DIVISOR', 200);      // アーマーからダメージ軽減率への変換（200アーマー=50%軽減）
-define('BATTLE_MAX_ARMOR_REDUCTION', 0.75);         // 最大アーマー軽減率（75%）
+define('BATTLE_MAX_ARMOR_REDUCTION_CAP', 0.90);     // 新アーマー計算：最大ダメージ軽減率（90%）
+define('BATTLE_MIN_DAMAGE_PERCENTAGE', 0.10);       // 新アーマー計算：最低保証ダメージ（元のダメージの10%）
 define('BATTLE_MIN_DAMAGE', 1);                     // 最小ダメージ
 define('BATTLE_EQUIPMENT_ATTACK_MULTIPLIER', 0.5);  // 装備攻撃力の適用倍率
 define('BATTLE_EQUIPMENT_ARMOR_MULTIPLIER', 1.0);   // 装備アーマーの適用倍率
@@ -19,6 +19,7 @@ define('BATTLE_DOT_BASE_HEALTH', 1000);              // 継続ダメージ計算
 define('BATTLE_DOT_SCALING_FACTOR', 0.3);            // 継続ダメージのスケーリング係数（0.3 = 30%）
 define('BATTLE_MAX_NEW_SKILL_ACTIVATIONS', 3);      // ① 1ターンに新たに発動可能なスキルの最大数
                                                      // 除外対象: 継続バフ/デバフ、即時ダメージ、回復、DOT、シナジー
+define('SYNERGY_SKILL_DURATION_THRESHOLD', 99);     // シナジースキル判定の継続ターン閾値
 
 // ③ ヒーロースキルシステム定数（見直し：発動率を下げ、ダメージ上限を動的に設定）
 define('HERO_SKILL_BASE_ACTIVATION_CHANCE', 15);     // ③ ヒーロースキル基本発動率（%）30→15に減少
@@ -495,6 +496,7 @@ function prepareBattleUnit($troops, $equipmentBuffs, $pdo) {
     $troopKeys = [];  // 出撃中の兵種キーを収集（シナジー判定用）
     $domainCategories = [];  // 出撃中の領域カテゴリを収集（陸・海・空）
     
+    // 第1パス: 兵種キーとカテゴリを収集（シナジー判定用）
     foreach ($troops as $troop) {
         $troopType = getTroopTypeWithSkill($pdo, $troop['troop_type_id']);
         if (!$troopType) continue;
@@ -502,21 +504,67 @@ function prepareBattleUnit($troops, $equipmentBuffs, $pdo) {
         $count = (int)$troop['count'];
         if ($count <= 0) continue;
         
-        $attack = (int)$troopType['attack_power'] * $count;
-        $defense = (int)$troopType['defense_power'] * $count;
-        $health = (int)($troopType['health_points'] ?? 100) * $count;
-        
-        $totalAttack += $attack;
-        $totalArmor += $defense;
-        $totalHealth += $health;
-        
-        // 兵種キーと領域カテゴリを収集
         if (!empty($troopType['troop_key'])) {
             $troopKeys[] = $troopType['troop_key'];
         }
         if (!empty($troopType['domain_category'])) {
             $domainCategories[] = $troopType['domain_category'];
         }
+    }
+    
+    // シナジー条件をチェック
+    $hasSubmarineSynergy = in_array('cruiser', $troopKeys) && (in_array('submarine', $troopKeys) || in_array('nuclear_submarine', $troopKeys));
+    $hasMarineSynergy = in_array('assault_ship', $troopKeys) && in_array('marine', $troopKeys);
+    $hasAirSuperiority = in_array('assault_carrier', $troopKeys) && in_array('air', $domainCategories);
+    
+    $synergyMessages = [];
+    if ($hasSubmarineSynergy) {
+        $synergyMessages[] = '🔱 対潜連携発動！巡洋艦のステータス2倍！';
+    }
+    if ($hasMarineSynergy) {
+        $synergyMessages[] = '⚓ 上陸支援発動！強襲揚陸艦のステータス3倍！';
+    }
+    if ($hasAirSuperiority) {
+        $synergyMessages[] = '✈️ 制空権準備完了！';
+    }
+    
+    // 第2パス: ステータスを計算（個別兵種にシナジーを適用）
+    foreach ($troops as $troop) {
+        $troopType = getTroopTypeWithSkill($pdo, $troop['troop_type_id']);
+        if (!$troopType) continue;
+        
+        $count = (int)$troop['count'];
+        if ($count <= 0) continue;
+        
+        $troopKey = $troopType['troop_key'] ?? '';
+        
+        // 個別兵種のシナジー倍率を適用
+        $troopAttackMultiplier = 1.0;
+        $troopArmorMultiplier = 1.0;
+        $troopHealthMultiplier = 1.0;
+        
+        // 潜水艦シナジー: 巡洋艦のみステータス2倍
+        if ($hasSubmarineSynergy && $troopKey === 'cruiser') {
+            $troopAttackMultiplier += 1.0;  // +100% = 2倍
+            $troopArmorMultiplier += 1.0;
+            $troopHealthMultiplier += 1.0;
+        }
+        
+        // 海兵隊シナジー: 強襲揚陸艦のみステータス3倍
+        if ($hasMarineSynergy && $troopKey === 'assault_ship') {
+            $troopAttackMultiplier += 2.0;  // +200% = 3倍
+            $troopArmorMultiplier += 2.0;
+            $troopHealthMultiplier += 2.0;
+        }
+        
+        // ステータス計算（シナジー倍率を個別適用）
+        $attack = (int)floor((int)$troopType['attack_power'] * $count * $troopAttackMultiplier);
+        $defense = (int)floor((int)$troopType['defense_power'] * $count * $troopArmorMultiplier);
+        $health = (int)floor((int)($troopType['health_points'] ?? 100) * $count * $troopHealthMultiplier);
+        
+        $totalAttack += $attack;
+        $totalArmor += $defense;
+        $totalHealth += $health;
         
         // スキル情報を収集
         if (!empty($troopType['skill_key'])) {
@@ -533,7 +581,7 @@ function prepareBattleUnit($troops, $equipmentBuffs, $pdo) {
                 'troop_name' => $troopType['name'],
                 'troop_icon' => $troopType['icon'],
                 'count' => $count,
-                'troop_attack_power' => $attack  // ④ スキル持ち部隊の合計攻撃力（兵士1体の攻撃力×兵数）
+                'troop_attack_power' => $attack  // ④ スキル持ち部隊の合計攻撃力（兵士1体の攻撃力×兵数×シナジー倍率）
             ];
         }
         
@@ -547,40 +595,9 @@ function prepareBattleUnit($troops, $equipmentBuffs, $pdo) {
             'health' => $health,
             'category' => $troopType['troop_category'] ?? 'infantry',
             'domain_category' => $troopType['domain_category'] ?? 'land',
-            'troop_key' => $troopType['troop_key'] ?? '',
+            'troop_key' => $troopKey,
             'is_disposable' => !empty($troopType['is_disposable'])
         ];
-    }
-    
-    // シナジースキルの効果を計算（加算方式）
-    $attackMultiplier = 1.0;
-    $armorMultiplier = 1.0;
-    $healthMultiplier = 1.0;
-    $synergyMessages = [];
-    
-    // 潜水艦シナジー（巡洋艦: 潜水艦と同時出撃でステータス2倍）
-    // 巡洋艦自身のステータスのみに適用（全体ではない）
-    if (in_array('cruiser', $troopKeys) && (in_array('submarine', $troopKeys) || in_array('nuclear_submarine', $troopKeys))) {
-        $attackMultiplier += 1.0;  // +100% = 2倍
-        $armorMultiplier += 1.0;
-        $healthMultiplier += 1.0;
-        $synergyMessages[] = '🔱 対潜連携発動！巡洋艦のステータス2倍！';
-    }
-    
-    // 海兵隊シナジー（強襲揚陸艦: 海兵隊と同時出撃でステータス3倍）
-    // 強襲揚陸艦自身のステータスのみに適用（全体ではない）
-    if (in_array('assault_ship', $troopKeys) && in_array('marine', $troopKeys)) {
-        $attackMultiplier += 2.0;  // +200% = 3倍
-        $armorMultiplier += 2.0;
-        $healthMultiplier += 2.0;
-        $synergyMessages[] = '⚓ 上陸支援発動！強襲揚陸艦のステータス3倍！';
-    }
-    
-    // 空カテゴリシナジー（強襲型空母: 空カテゴリと同時出撃で攻撃力40%UP）
-    // 攻撃力のみに適用
-    if (in_array('assault_carrier', $troopKeys) && in_array('air', $domainCategories)) {
-        $attackMultiplier += 0.4;  // +40%
-        $synergyMessages[] = '✈️ 制空権発動！味方全体の攻撃力40%アップ！';
     }
     
     // 装備バフを追加
@@ -588,10 +605,10 @@ function prepareBattleUnit($troops, $equipmentBuffs, $pdo) {
     $equipArmorBonus = (int)floor(($equipmentBuffs['armor'] ?? 0) * BATTLE_EQUIPMENT_ARMOR_MULTIPLIER);
     $equipHealthBonus = (int)floor(($equipmentBuffs['health'] ?? 0) * BATTLE_EQUIPMENT_HEALTH_MULTIPLIER);
     
-    // シナジー倍率を適用（各ステータスごとに個別適用）
-    $finalAttack = (int)floor(($totalAttack + $equipAttackBonus) * $attackMultiplier);
-    $finalArmor = (int)floor(($totalArmor + $equipArmorBonus) * $armorMultiplier);
-    $finalHealth = (int)floor(($totalHealth + $equipHealthBonus) * $healthMultiplier);
+    // 装備ボーナスを追加（シナジーは既に個別適用済み）
+    $finalAttack = $totalAttack + $equipAttackBonus;
+    $finalArmor = $totalArmor + $equipArmorBonus;
+    $finalHealth = $totalHealth + $equipHealthBonus;
     
     return [
         'attack' => $finalAttack,
@@ -637,6 +654,12 @@ function calculateDamage($baseAttack, $targetArmor, $attackerEffects = [], $defe
         if ($effect['skill_key'] === 'bloodlust') {
             $attackMultiplier += $effect['effect_value'] / 100;
             $messages[] = "🩸 血の渇望！攻撃力上昇 (+{$effect['effect_value']}%)";
+        }
+        
+        // シナジースキル: 空カテゴリシナジー（全体適用）
+        if ($effect['skill_key'] === 'air_superiority') {
+            $attackMultiplier += $effect['effect_value'] / 100;
+            $messages[] = "✈️ 制空権！攻撃力上昇 (+{$effect['effect_value']}%)";
         }
         
         // 対空掃射スキル：相手に空カテゴリがいる場合、攻撃力40%アップ
@@ -772,10 +795,24 @@ function calculateDamage($baseAttack, $targetArmor, $attackerEffects = [], $defe
         $messages[] = "💥 クリティカルヒット！";
     }
     
-    // アーマーによるダメージ軽減
+    // アーマーによるダメージ軽減（直接引き算方式、ダメージの90%を上限）
     $effectiveArmor = $targetArmor * $armorMultiplier;
-    $armorReduction = min(BATTLE_MAX_ARMOR_REDUCTION, $effectiveArmor / BATTLE_ARMOR_REDUCTION_DIVISOR);
-    $finalDamage = (int)max(BATTLE_MIN_DAMAGE, floor($attackWithVariance * (1 - $armorReduction)));
+    
+    // ダメージからアーマーを引く
+    $damageAfterArmor = $attackWithVariance - $effectiveArmor;
+    
+    // 最低でも元のダメージの10%は通す（90%軽減が上限）
+    $minDamage = $attackWithVariance * BATTLE_MIN_DAMAGE_PERCENTAGE;
+    $finalDamage = (int)max($minDamage, $damageAfterArmor);
+    
+    // 絶対最小値を保証
+    $finalDamage = (int)max(BATTLE_MIN_DAMAGE, $finalDamage);
+    
+    // 軽減率を計算（情報表示用）
+    // damageAfterArmor が負の場合は、軽減されたダメージ量は攻撃力を超えている
+    $damageReduced = max(0, $attackWithVariance - max(0, $damageAfterArmor));
+    $armorReduction = ($attackWithVariance > 0) ? 
+        min(BATTLE_MAX_ARMOR_REDUCTION_CAP, $damageReduced / $attackWithVariance) : 0;
     
     return [
         'damage' => $finalDamage,
@@ -862,7 +899,7 @@ function tryActivateSkill($unit, $target, $isAttacker) {
             }
             // 寝返りスキル（敵にダメージを与えその分回復）
             else if ($skill['skill_key'] === 'defection') {
-                $defectionDamage = (int)floor($unit['attack'] * ($skill['effect_value'] / 100));
+                $defectionDamage = (int)floor($skill['troop_attack_power'] * ($skill['effect_value'] / 100));
                 $effect['instant_damage'] = $defectionDamage;
                 $effect['instant_heal'] = $defectionDamage;
                 $effect['effect_type'] = 'drain';
@@ -896,7 +933,7 @@ function tryActivateSkill($unit, $target, $isAttacker) {
             // 放射能攻撃（継続ダメージ - 戦闘終了まで継続）
             else if ($skill['skill_key'] === 'radiation_attack') {
                 $effect['effect_type'] = 'damage_over_time';
-                $effect['remaining_turns'] = 99; // 戦闘終了まで継続
+                $effect['remaining_turns'] = SYNERGY_SKILL_DURATION_THRESHOLD; // 戦闘終了まで継続
                 $newEffects[] = $effect;
                 $messages[] = "☢️ 放射能攻撃！敵に継続的な放射能ダメージを与える！";
             }
@@ -908,7 +945,7 @@ function tryActivateSkill($unit, $target, $isAttacker) {
             }
             // ドローン一斉攻撃（即時ダメージ）
             else if ($skill['skill_key'] === 'drone_barrage') {
-                $barrageDamage = (int)floor($unit['attack'] * ($skill['effect_value'] / 100));
+                $barrageDamage = (int)floor($skill['troop_attack_power'] * ($skill['effect_value'] / 100));
                 $effect['instant_damage'] = $barrageDamage;
                 $effect['effect_type'] = 'instant_damage';
                 $newEffects[] = $effect;
@@ -928,7 +965,7 @@ function tryActivateSkill($unit, $target, $isAttacker) {
             }
             // 量子トンネル効果（即時ダメージ、防御無視）
             else if ($skill['skill_key'] === 'quantum_tunneling') {
-                $tunnelingDamage = (int)floor($unit['attack'] * ($skill['effect_value'] / 100));
+                $tunnelingDamage = (int)floor($skill['troop_attack_power'] * ($skill['effect_value'] / 100));
                 $effect['instant_damage'] = $tunnelingDamage;
                 $effect['effect_type'] = 'instant_damage';
                 $effect['ignore_defense'] = true;
@@ -957,7 +994,7 @@ function tryActivateSkill($unit, $target, $isAttacker) {
             }
             // 反物質爆発（大ダメージ）
             else if ($skill['skill_key'] === 'antimatter_explosion') {
-                $explosionDamage = (int)floor($unit['attack'] * ($skill['effect_value'] / 100));
+                $explosionDamage = (int)floor($skill['troop_attack_power'] * ($skill['effect_value'] / 100));
                 $effect['instant_damage'] = $explosionDamage;
                 $effect['effect_type'] = 'instant_damage';
                 $newEffects[] = $effect;
@@ -965,7 +1002,7 @@ function tryActivateSkill($unit, $target, $isAttacker) {
             }
             // ワープストライク（即時ダメージ）
             else if ($skill['skill_key'] === 'warp_strike') {
-                $warpDamage = (int)floor($unit['attack'] * ($skill['effect_value'] / 100));
+                $warpDamage = (int)floor($skill['troop_attack_power'] * ($skill['effect_value'] / 100));
                 $effect['instant_damage'] = $warpDamage;
                 $effect['effect_type'] = 'instant_damage';
                 $newEffects[] = $effect;
@@ -982,6 +1019,87 @@ function tryActivateSkill($unit, $target, $isAttacker) {
                 $effect['effect_type'] = 'hot'; // heal over time
                 $newEffects[] = $effect;
                 $messages[] = "🔧 自動修復！ダメージを自動で回復！";
+            }
+            // 爆弾投下（海カテゴリにダメージ倍増）
+            else if ($skill['skill_key'] === 'bomb_drop') {
+                // 敵が海カテゴリかチェック
+                if (isset($target['domain_categories']) && in_array('sea', $target['domain_categories'])) {
+                    // effect_value = 100 → 100%増加 = 2倍
+                    $multiplier = 1 + ($skill['effect_value'] / 100);
+                    $bombDamage = (int)floor($skill['troop_attack_power'] * $multiplier);
+                    $effect['instant_damage'] = $bombDamage;
+                    $effect['effect_type'] = 'instant_damage';
+                    $newEffects[] = $effect;
+                    $messages[] = "💣 爆弾投下！海カテゴリに{$bombDamage}ダメージ！";
+                }
+            }
+            // レーザー照射（空カテゴリにダメージ倍増）
+            else if ($skill['skill_key'] === 'laser_irradiation') {
+                // 敵が空カテゴリかチェック
+                if (isset($target['domain_categories']) && in_array('air', $target['domain_categories'])) {
+                    // effect_value = 100 → 100%増加 = 2倍
+                    $multiplier = 1 + ($skill['effect_value'] / 100);
+                    $laserDamage = (int)floor($skill['troop_attack_power'] * $multiplier);
+                    $effect['instant_damage'] = $laserDamage;
+                    $effect['effect_type'] = 'instant_damage';
+                    $newEffects[] = $effect;
+                    $messages[] = "🔦 レーザー照射！空カテゴリに{$laserDamage}ダメージ！";
+                }
+            }
+            // 散弾発射（陸カテゴリにダメージ倍増）
+            else if ($skill['skill_key'] === 'shrapnel_fire') {
+                // 敵が陸カテゴリかチェック
+                if (isset($target['domain_categories']) && in_array('land', $target['domain_categories'])) {
+                    // effect_value = 100 → 100%増加 = 2倍
+                    $multiplier = 1 + ($skill['effect_value'] / 100);
+                    $shrapnelDamage = (int)floor($skill['troop_attack_power'] * $multiplier);
+                    $effect['instant_damage'] = $shrapnelDamage;
+                    $effect['effect_type'] = 'instant_damage';
+                    $newEffects[] = $effect;
+                    $messages[] = "💥 散弾発射！陸カテゴリに{$shrapnelDamage}ダメージ！";
+                }
+            }
+            // 投石（アーマー貫通ダメージ）
+            else if ($skill['skill_key'] === 'stone_throw') {
+                // effect_value = 100 → 100%の攻撃力
+                $stoneDamage = (int)floor($skill['troop_attack_power'] * ($skill['effect_value'] / 100));
+                $effect['instant_damage'] = $stoneDamage;
+                $effect['effect_type'] = 'instant_damage';
+                $effect['ignore_defense'] = true; // アーマー貫通
+                $newEffects[] = $effect;
+                $messages[] = "🪨 投石！アーマーを貫通して{$stoneDamage}ダメージ！";
+            }
+            // 自律飛行（3回連続攻撃）
+            else if ($skill['skill_key'] === 'autonomous_flight') {
+                // effect_value = 3 → 3回攻撃
+                $extraAttacks += (int)$skill['effect_value'] - 1; // 通常の1回 + 追加(3-1)回
+                $messages[] = "🚀 自律飛行！{$skill['effect_value']}回連続攻撃！";
+            }
+            // 核武装解除（核カテゴリに大ダメージ）
+            else if ($skill['skill_key'] === 'nuclear_disarm') {
+                // 敵に核カテゴリのユニットがいるかチェック
+                $hasNuclearUnit = false;
+                if (isset($target['troops'])) {
+                    foreach ($target['troops'] as $troop) {
+                        // 核カテゴリユニット（nuclear_submarine, icbm, nuclear_bomberなど）
+                        if (isset($troop['troop_key']) && 
+                            (strpos($troop['troop_key'], 'nuclear') !== false || 
+                             $troop['troop_key'] === 'icbm' || 
+                             $troop['troop_key'] === 'nuclear_bomber')) {
+                            $hasNuclearUnit = true;
+                            break;
+                        }
+                    }
+                }
+                if ($hasNuclearUnit) {
+                    // effect_value = 100 → 100%増加 = 2倍
+                    $multiplier = 1 + ($skill['effect_value'] / 100);
+                    $nuclearDamage = (int)floor($skill['troop_attack_power'] * $multiplier);
+                    $effect['instant_damage'] = $nuclearDamage;
+                    $effect['effect_type'] = 'instant_damage';
+                    $newEffects[] = $effect;
+                    $messages[] = "☢️ 核武装解除！核ユニットに{$nuclearDamage}ダメージ！";
+                }
             }
             else {
                 $newEffects[] = $effect;
@@ -1012,8 +1130,8 @@ function tryActivateSkill($unit, $target, $isAttacker) {
             else if (in_array($effect['effect_type'], ['damage_over_time', 'dot', 'nuclear_dot'])) {
                 $shouldCount = false;
             }
-            // シナジースキル（duration_turns が 99）はカウントしない
-            else if (isset($effect['remaining_turns']) && $effect['remaining_turns'] >= 99) {
+            // シナジースキル（duration_turns が SYNERGY_SKILL_DURATION_THRESHOLD 以上）はカウントしない
+            else if (isset($effect['remaining_turns']) && $effect['remaining_turns'] >= SYNERGY_SKILL_DURATION_THRESHOLD) {
                 $shouldCount = false;
             }
             
@@ -1128,6 +1246,78 @@ function processDamageOverTime($unit) {
 }
 
 /**
+ * シナジースキルを全て発動（ターン1のみ、スキル発動上限には含めない）
+ * duration_turns が SYNERGY_SKILL_DURATION_THRESHOLD 以上のスキルを自動発動
+ * @param array $unit バトルユニット
+ * @param array $target ターゲットユニット
+ * @return array [effects, messages]
+ */
+function activateSynergySkills($unit, $target) {
+    $messages = [];
+    $newEffects = [];
+    
+    // duration_turns が SYNERGY_SKILL_DURATION_THRESHOLD 以上のスキルをシナジースキルとして判定
+    foreach ($unit['skills'] as $skill) {
+        // ヒーロースキルは除外
+        if (!empty($skill['is_hero_skill'])) {
+            continue;
+        }
+        
+        // シナジースキル（duration_turns >= SYNERGY_SKILL_DURATION_THRESHOLD）のみを対象
+        if ((int)$skill['duration_turns'] >= SYNERGY_SKILL_DURATION_THRESHOLD) {
+            // シナジー条件をチェック
+            // 条件付きシナジースキル: submarine_synergy, marine_synergy, air_superiority
+            // submarine_synergy と marine_synergy は prepareBattleUnit で既に適用済みなので、
+            // ここでは発動しない（全体適用を防ぐため）
+            // air_superiority のみ全体適用のためここで発動
+            // これら以外の長期継続スキル（例: radiation_attack）は常に発動
+            $shouldActivate = false;
+            
+            // 潜水艦シナジー: prepareBattleUnit で既に適用済みなのでスキップ
+            if ($skill['skill_key'] === 'submarine_synergy') {
+                $shouldActivate = false;
+            }
+            // 海兵隊シナジー: prepareBattleUnit で既に適用済みなのでスキップ
+            else if ($skill['skill_key'] === 'marine_synergy') {
+                $shouldActivate = false;
+            }
+            // 空カテゴリシナジー（強襲型空母）: 空カテゴリが同時出撃している必要あり（全体適用）
+            else if ($skill['skill_key'] === 'air_superiority') {
+                if (in_array('air', $unit['domain_categories'])) {
+                    $shouldActivate = true;
+                }
+            }
+            // その他の長期継続スキル（放射能攻撃など）は条件なしで発動
+            else if (!in_array($skill['skill_key'], ['submarine_synergy', 'marine_synergy', 'air_superiority'])) {
+                $shouldActivate = true;
+            }
+            
+            if ($shouldActivate) {
+                $effect = [
+                    'skill_key' => $skill['skill_key'],
+                    'skill_name' => $skill['skill_name'],
+                    'skill_icon' => $skill['skill_icon'],
+                    'effect_type' => $skill['effect_type'],
+                    'effect_target' => $skill['effect_target'],
+                    'effect_value' => $skill['effect_value'],
+                    'remaining_turns' => $skill['duration_turns'],
+                    'troop_name' => $skill['troop_name'],
+                    'troop_icon' => $skill['troop_icon']
+                ];
+                
+                $newEffects[] = $effect;
+                $messages[] = "{$skill['troop_icon']} {$skill['troop_name']}が「{$skill['skill_icon']} {$skill['skill_name']}」を発動！";
+            }
+        }
+    }
+    
+    return [
+        'effects' => $newEffects,
+        'messages' => $messages
+    ];
+}
+
+/**
  * ターン制バトルを実行
  * @param array $attacker 攻撃側ユニット
  * @param array $defender 防御側ユニット
@@ -1145,6 +1335,35 @@ function executeTurnBattle($attacker, $defender, $maxTurns = null) {
         $currentTurn++;
         $turnMessages = [];
         $turnMessages[] = "===== ターン {$currentTurn} =====";
+        
+        // ターン1でシナジースキルを全て発動（スキル発動上限の3つには含めない）
+        if ($currentTurn === 1) {
+            // 攻撃側のシナジースキル発動
+            $attackerSynergyResult = activateSynergySkills($attacker, $defender);
+            if (!empty($attackerSynergyResult['messages'])) {
+                $turnMessages = array_merge($turnMessages, $attackerSynergyResult['messages']);
+            }
+            foreach ($attackerSynergyResult['effects'] as $effect) {
+                $attacker['active_effects'][] = $effect;
+            }
+            // 事前適用されたシナジーメッセージも表示
+            if (!empty($attacker['synergy_messages'])) {
+                $turnMessages = array_merge($turnMessages, $attacker['synergy_messages']);
+            }
+            
+            // 防御側のシナジースキル発動
+            $defenderSynergyResult = activateSynergySkills($defender, $attacker);
+            if (!empty($defenderSynergyResult['messages'])) {
+                $turnMessages = array_merge($turnMessages, $defenderSynergyResult['messages']);
+            }
+            foreach ($defenderSynergyResult['effects'] as $effect) {
+                $defender['active_effects'][] = $effect;
+            }
+            // 事前適用されたシナジーメッセージも表示
+            if (!empty($defender['synergy_messages'])) {
+                $turnMessages = array_merge($turnMessages, $defender['synergy_messages']);
+            }
+        }
         
         // --- 攻撃側のターン ---
         $attackerFrozen = false;
