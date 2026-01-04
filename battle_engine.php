@@ -9,8 +9,6 @@ define('BATTLE_MAX_TURNS', 50);                     // 最大ターン数
 define('BATTLE_DAMAGE_VARIANCE', 0.2);              // ダメージの乱数幅（±20%）
 define('BATTLE_CRITICAL_MULTIPLIER', 1.5);          // クリティカルダメージ倍率
 define('BATTLE_BASE_CRITICAL_CHANCE', 5);           // 基本クリティカル率（%）
-define('BATTLE_ARMOR_REDUCTION_DIVISOR', 200);      // アーマーからダメージ軽減率への変換（200アーマー=50%軽減）※旧方式
-define('BATTLE_MAX_ARMOR_REDUCTION', 0.75);         // 最大アーマー軽減率（75%）※旧方式
 define('BATTLE_MAX_ARMOR_REDUCTION_CAP', 0.90);     // 新アーマー計算：最大ダメージ軽減率（90%）
 define('BATTLE_MIN_DAMAGE_PERCENTAGE', 0.10);       // 新アーマー計算：最低保証ダメージ（元のダメージの10%）
 define('BATTLE_MIN_DAMAGE', 1);                     // 最小ダメージ
@@ -817,8 +815,10 @@ function calculateDamage($baseAttack, $targetArmor, $attackerEffects = [], $defe
     $finalDamage = (int)max(BATTLE_MIN_DAMAGE, $finalDamage);
     
     // 軽減率を計算（情報表示用）
+    // damageAfterArmor が負の場合は、軽減されたダメージ量は攻撃力を超えている
+    $damageReduced = max(0, $attackWithVariance - max(0, $damageAfterArmor));
     $armorReduction = ($attackWithVariance > 0) ? 
-        min(BATTLE_MAX_ARMOR_REDUCTION_CAP, ($attackWithVariance - $damageAfterArmor) / $attackWithVariance) : 0;
+        min(BATTLE_MAX_ARMOR_REDUCTION_CAP, $damageReduced / $attackWithVariance) : 0;
     
     return [
         'damage' => $finalDamage,
@@ -1191,28 +1191,29 @@ function activateSynergySkills($unit, $target) {
         // シナジースキル（duration_turns >= SYNERGY_SKILL_DURATION_THRESHOLD）のみを対象
         if ((int)$skill['duration_turns'] >= SYNERGY_SKILL_DURATION_THRESHOLD) {
             // シナジー条件をチェック
+            // 条件付きシナジースキル: submarine_synergy, marine_synergy, air_superiority
+            // これら以外の長期継続スキル（例: radiation_attack）は常に発動
             $shouldActivate = false;
             
-            // 潜水艦シナジー（巡洋艦）
+            // 潜水艦シナジー（巡洋艦）: 潜水艦または原子力潜水艦が同時出撃している必要あり
             if ($skill['skill_key'] === 'submarine_synergy') {
                 if (in_array('submarine', $unit['troop_keys']) || in_array('nuclear_submarine', $unit['troop_keys'])) {
                     $shouldActivate = true;
                 }
             }
-            // 海兵隊シナジー（強襲揚陸艦）
+            // 海兵隊シナジー（強襲揚陸艦）: 海兵隊が同時出撃している必要あり
             if ($skill['skill_key'] === 'marine_synergy') {
                 if (in_array('marine', $unit['troop_keys'])) {
                     $shouldActivate = true;
                 }
             }
-            // 空カテゴリシナジー（強襲型空母）
+            // 空カテゴリシナジー（強襲型空母）: 空カテゴリが同時出撃している必要あり
             if ($skill['skill_key'] === 'air_superiority') {
                 if (in_array('air', $unit['domain_categories'])) {
                     $shouldActivate = true;
                 }
             }
-            // その他の長期継続スキル（放射能攻撃など）も発動
-            // 特定のシナジー条件がない場合は常に発動
+            // その他の長期継続スキル（放射能攻撃など）は条件なしで発動
             if (!in_array($skill['skill_key'], ['submarine_synergy', 'marine_synergy', 'air_superiority'])) {
                 $shouldActivate = true;
             }
