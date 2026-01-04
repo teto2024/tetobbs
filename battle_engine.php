@@ -553,34 +553,31 @@ function prepareBattleUnit($troops, $equipmentBuffs, $pdo) {
     }
     
     // シナジースキルの効果を計算（加算方式）
+    // 注: 攻撃力とアーマーのシナジーボーナスはターン1でスキル発動により適用される
+    // ここではHP倍率のみ適用（HPは戦闘開始時に固定されるため）
     $attackMultiplier = 1.0;
     $armorMultiplier = 1.0;
     $healthMultiplier = 1.0;
     $synergyMessages = [];
     
     // 潜水艦シナジー（巡洋艦: 潜水艦と同時出撃でステータス2倍）
-    // 巡洋艦自身のステータスのみに適用（全体ではない）
+    // HPのみここで適用、攻撃力とアーマーはターン1でスキル発動時に適用
     if (in_array('cruiser', $troopKeys) && (in_array('submarine', $troopKeys) || in_array('nuclear_submarine', $troopKeys))) {
-        $attackMultiplier += 1.0;  // +100% = 2倍
-        $armorMultiplier += 1.0;
-        $healthMultiplier += 1.0;
-        $synergyMessages[] = '🔱 対潜連携発動！巡洋艦のステータス2倍！';
+        $healthMultiplier += 1.0;  // +100% = 2倍
+        $synergyMessages[] = '🔱 対潜連携準備完了！';
     }
     
     // 海兵隊シナジー（強襲揚陸艦: 海兵隊と同時出撃でステータス3倍）
-    // 強襲揚陸艦自身のステータスのみに適用（全体ではない）
+    // HPのみここで適用、攻撃力とアーマーはターン1でスキル発動時に適用
     if (in_array('assault_ship', $troopKeys) && in_array('marine', $troopKeys)) {
-        $attackMultiplier += 2.0;  // +200% = 3倍
-        $armorMultiplier += 2.0;
-        $healthMultiplier += 2.0;
-        $synergyMessages[] = '⚓ 上陸支援発動！強襲揚陸艦のステータス3倍！';
+        $healthMultiplier += 2.0;  // +200% = 3倍
+        $synergyMessages[] = '⚓ 上陸支援準備完了！';
     }
     
     // 空カテゴリシナジー（強襲型空母: 空カテゴリと同時出撃で攻撃力40%UP）
-    // 攻撃力のみに適用
+    // 攻撃力のみの効果なので、ターン1でスキル発動時に適用
     if (in_array('assault_carrier', $troopKeys) && in_array('air', $domainCategories)) {
-        $attackMultiplier += 0.4;  // +40%
-        $synergyMessages[] = '✈️ 制空権発動！味方全体の攻撃力40%アップ！';
+        $synergyMessages[] = '✈️ 制空権準備完了！';
     }
     
     // 装備バフを追加
@@ -588,7 +585,8 @@ function prepareBattleUnit($troops, $equipmentBuffs, $pdo) {
     $equipArmorBonus = (int)floor(($equipmentBuffs['armor'] ?? 0) * BATTLE_EQUIPMENT_ARMOR_MULTIPLIER);
     $equipHealthBonus = (int)floor(($equipmentBuffs['health'] ?? 0) * BATTLE_EQUIPMENT_HEALTH_MULTIPLIER);
     
-    // シナジー倍率を適用（各ステータスごとに個別適用）
+    // 攻撃力とアーマーには装備ボーナスのみ適用（シナジーはターン1のスキル発動で適用）
+    // HPにはシナジー倍率も適用（戦闘開始時に固定されるため）
     $finalAttack = (int)floor(($totalAttack + $equipAttackBonus) * $attackMultiplier);
     $finalArmor = (int)floor(($totalArmor + $equipArmorBonus) * $armorMultiplier);
     $finalHealth = (int)floor(($totalHealth + $equipHealthBonus) * $healthMultiplier);
@@ -637,6 +635,24 @@ function calculateDamage($baseAttack, $targetArmor, $attackerEffects = [], $defe
         if ($effect['skill_key'] === 'bloodlust') {
             $attackMultiplier += $effect['effect_value'] / 100;
             $messages[] = "🩸 血の渇望！攻撃力上昇 (+{$effect['effect_value']}%)";
+        }
+        
+        // シナジースキル: 潜水艦シナジー
+        if ($effect['skill_key'] === 'submarine_synergy') {
+            $attackMultiplier += $effect['effect_value'] / 100;
+            $messages[] = "🔱 対潜連携！攻撃力上昇 (+{$effect['effect_value']}%)";
+        }
+        
+        // シナジースキル: 海兵隊シナジー
+        if ($effect['skill_key'] === 'marine_synergy') {
+            $attackMultiplier += $effect['effect_value'] / 100;
+            $messages[] = "⚓ 上陸支援！攻撃力上昇 (+{$effect['effect_value']}%)";
+        }
+        
+        // シナジースキル: 空カテゴリシナジー
+        if ($effect['skill_key'] === 'air_superiority') {
+            $attackMultiplier += $effect['effect_value'] / 100;
+            $messages[] = "✈️ 制空権！攻撃力上昇 (+{$effect['effect_value']}%)";
         }
         
         // 対空掃射スキル：相手に空カテゴリがいる場合、攻撃力40%アップ
@@ -732,6 +748,18 @@ function calculateDamage($baseAttack, $targetArmor, $attackerEffects = [], $defe
         if ($effect['skill_key'] === 'weaken') {
             $armorMultiplier -= $effect['effect_value'] / 100;
             $messages[] = "💀 弱体化！防御力低下 (-{$effect['effect_value']}%)";
+        }
+        
+        // シナジースキル: 潜水艦シナジー（防御側の効果）
+        if ($effect['skill_key'] === 'submarine_synergy') {
+            $armorMultiplier += $effect['effect_value'] / 100;
+            $messages[] = "🔱 対潜連携！防御力上昇 (+{$effect['effect_value']}%)";
+        }
+        
+        // シナジースキル: 海兵隊シナジー（防御側の効果）
+        if ($effect['skill_key'] === 'marine_synergy') {
+            $armorMultiplier += $effect['effect_value'] / 100;
+            $messages[] = "⚓ 上陸支援！防御力上昇 (+{$effect['effect_value']}%)";
         }
     }
     $armorMultiplier = max(0, $armorMultiplier);
