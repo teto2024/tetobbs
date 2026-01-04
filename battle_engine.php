@@ -519,10 +519,10 @@ function prepareBattleUnit($troops, $equipmentBuffs, $pdo) {
     
     $synergyMessages = [];
     if ($hasSubmarineSynergy) {
-        $synergyMessages[] = '🔱 対潜連携準備完了！';
+        $synergyMessages[] = '🔱 対潜連携発動！巡洋艦のステータス2倍！';
     }
     if ($hasMarineSynergy) {
-        $synergyMessages[] = '⚓ 上陸支援準備完了！';
+        $synergyMessages[] = '⚓ 上陸支援発動！強襲揚陸艦のステータス3倍！';
     }
     if ($hasAirSuperiority) {
         $synergyMessages[] = '✈️ 制空権準備完了！';
@@ -1346,6 +1346,10 @@ function executeTurnBattle($attacker, $defender, $maxTurns = null) {
             foreach ($attackerSynergyResult['effects'] as $effect) {
                 $attacker['active_effects'][] = $effect;
             }
+            // 事前適用されたシナジーメッセージも表示
+            if (!empty($attacker['synergy_messages'])) {
+                $turnMessages = array_merge($turnMessages, $attacker['synergy_messages']);
+            }
             
             // 防御側のシナジースキル発動
             $defenderSynergyResult = activateSynergySkills($defender, $attacker);
@@ -1354,6 +1358,10 @@ function executeTurnBattle($attacker, $defender, $maxTurns = null) {
             }
             foreach ($defenderSynergyResult['effects'] as $effect) {
                 $defender['active_effects'][] = $effect;
+            }
+            // 事前適用されたシナジーメッセージも表示
+            if (!empty($defender['synergy_messages'])) {
+                $turnMessages = array_merge($turnMessages, $defender['synergy_messages']);
             }
         }
         
