@@ -18,6 +18,7 @@ define('BATTLE_EQUIPMENT_HEALTH_MULTIPLIER', 2.0);  // 装備体力の適用倍�
 define('BATTLE_DOT_BASE_HEALTH', 1000);              // 継続ダメージ計算用の基準HP
 define('BATTLE_DOT_SCALING_FACTOR', 0.3);            // 継続ダメージのスケーリング係数（0.3 = 30%）
 define('BATTLE_MAX_NEW_SKILL_ACTIVATIONS', 3);      // ① 1ターンに新たに発動可能なスキルの最大数
+                                                     // 除外対象: 継続バフ/デバフ、即時ダメージ、回復、DOT、シナジー
 
 // ③ ヒーロースキルシステム定数（見直し：発動率を下げ、ダメージ上限を動的に設定）
 define('HERO_SKILL_BASE_ACTIVATION_CHANCE', 15);     // ③ ヒーロースキル基本発動率（%）30→15に減少
@@ -892,11 +893,12 @@ function tryActivateSkill($unit, $target, $isAttacker) {
                 $newEffects[] = $effect;
                 $messages[] = "📣 鼓舞！味方全体の攻撃力を上昇させる！";
             }
-            // 放射能攻撃（継続ダメージ）
+            // 放射能攻撃（継続ダメージ - 戦闘終了まで継続）
             else if ($skill['skill_key'] === 'radiation_attack') {
                 $effect['effect_type'] = 'damage_over_time';
+                $effect['remaining_turns'] = 99; // 戦闘終了まで継続
                 $newEffects[] = $effect;
-                $messages[] = "☢️ 放射能攻撃！敵に継続ダメージを与える！";
+                $messages[] = "☢️ 放射能攻撃！敵に継続的な放射能ダメージを与える！";
             }
             // サイバー攻撃（デバフ）
             else if ($skill['skill_key'] === 'cyber_attack') {
@@ -985,8 +987,37 @@ function tryActivateSkill($unit, $target, $isAttacker) {
                 $newEffects[] = $effect;
             }
             
-            // ① 既にアクティブな継続効果でなければカウント
-            if (!$isAlreadyActive) {
+            // ① スキル発動数のカウント制御
+            // 以下のタイプはカウント対象外:
+            // - 既にアクティブな継続効果（バフ/デバフ）
+            // - 即時ダメージスキル（instant_damage, damage, drain）
+            // - 回復スキル（heal, hot）
+            // - 継続ダメージ（damage_over_time, dot, nuclear_dot）
+            // - シナジースキル（duration_turns が 99 の buff/debuff）
+            $shouldCount = true;
+            
+            // 既にアクティブな継続効果はカウントしない
+            if ($isAlreadyActive) {
+                $shouldCount = false;
+            }
+            // 即時ダメージ系はカウントしない
+            else if (isset($effect['instant_damage']) || in_array($effect['effect_type'], ['instant_damage', 'damage', 'drain'])) {
+                $shouldCount = false;
+            }
+            // 回復系はカウントしない
+            else if (isset($effect['instant_heal']) || in_array($effect['effect_type'], ['heal', 'hot'])) {
+                $shouldCount = false;
+            }
+            // 継続ダメージ（放射能含む）はカウントしない
+            else if (in_array($effect['effect_type'], ['damage_over_time', 'dot', 'nuclear_dot'])) {
+                $shouldCount = false;
+            }
+            // シナジースキル（duration_turns が 99）はカウントしない
+            else if (isset($effect['remaining_turns']) && $effect['remaining_turns'] >= 99) {
+                $shouldCount = false;
+            }
+            
+            if ($shouldCount) {
                 $newSkillActivations++;
             }
             
