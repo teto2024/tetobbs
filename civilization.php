@@ -1949,6 +1949,7 @@ function renderApp() {
         <!-- タブ -->
         <div class="tabs">
             <button class="tab-btn ${currentTab === 'buildings' ? 'active' : ''}" data-tab="buildings">🏠 建物</button>
+            <button class="tab-btn ${currentTab === 'protection' ? 'active' : ''}" data-tab="protection" style="background: linear-gradient(135deg, rgba(212, 175, 55, 0.3) 0%, rgba(184, 134, 11, 0.3) 100%);">🛡️ 保護設定</button>
             <button class="tab-btn ${currentTab === 'research' ? 'active' : ''}" data-tab="research">📚 研究</button>
             <button class="tab-btn ${currentTab === 'market' ? 'active' : ''}" data-tab="market">🏪 市場</button>
             <button class="tab-btn ${currentTab === 'troops' ? 'active' : ''}" data-tab="troops">🎖️ 兵士<span id="wounded-badge" class="tab-badge" style="display:none;"></span></button>
@@ -2557,6 +2558,25 @@ function renderApp() {
                 </div>
             </div>
         </div>
+        
+        <!-- ② 保護設定タブ -->
+        <div class="tab-content ${currentTab === 'protection' ? 'active' : ''}" id="tab-protection">
+            <h3 style="color: #d4a574; margin-bottom: 20px;">🛡️ 資源・兵士の保護設定</h3>
+            
+            <!-- 保管庫セクション -->
+            <div class="protection-section" style="background: rgba(0,0,0,0.3); border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 2px solid #d4a574;">
+                <h4 style="color: #ffd700; margin-bottom: 15px;">🏦 保管庫 - 資源保護</h4>
+                <div id="vault-info" style="margin-bottom: 15px; color: #c0a080;"></div>
+                <div id="vault-resources" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;"></div>
+            </div>
+            
+            <!-- シェルターセクション -->
+            <div class="protection-section" style="background: rgba(0,0,0,0.3); border-radius: 12px; padding: 20px; border: 2px solid #d4a574;">
+                <h4 style="color: #ffd700; margin-bottom: 15px;">🛡️ シェルター - 兵士保護</h4>
+                <div id="shelter-info" style="margin-bottom: 15px; color: #c0a080;"></div>
+                <div id="shelter-troops" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;"></div>
+            </div>
+        </div>
     `;
     
     // タブ切り替え
@@ -2602,6 +2622,10 @@ function renderApp() {
             // リーダーボードタブの場合、ランキングを読み込む
             if (btn.dataset.tab === 'leaderboard') {
                 loadLeaderboard();
+            }
+            // ② 保護設定タブの場合、保護設定を読み込む
+            if (btn.dataset.tab === 'protection') {
+                loadProtectionSettings();
             }
             // イベントタブの場合、イベントを読み込む
             if (btn.dataset.tab === 'events') {
